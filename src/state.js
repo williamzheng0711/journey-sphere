@@ -12,7 +12,11 @@ const MAX_UINT32 = 0xffffffff;
  */
 export function validateVisited(ids, catalog) {
   const regionIds = validateCatalog(catalog);
+  validateVisitedIds(ids, regionIds);
+  return true;
+}
 
+function validateVisitedIds(ids, regionIds) {
   if (!Array.isArray(ids)) {
     throw new TypeError('Visited region IDs must be an array.');
   }
@@ -32,8 +36,6 @@ export function validateVisited(ids, catalog) {
     }
     seenIds.add(id);
   }
-
-  return true;
 }
 
 /**
@@ -44,25 +46,44 @@ export function validateVisited(ids, catalog) {
  * @returns {string}
  */
 export function encodeVisited(ids, catalog) {
-  validateVisited(ids, catalog);
-
-  const { regionIds } = catalog;
-  const bitsetLength = Math.ceil(regionIds.length / 8);
-  const payload = new Uint8Array(HEADER_BYTES + bitsetLength);
-  const fingerprint = catalogFingerprint(catalog);
-
-  payload[0] = 0x4a;
-  payload[1] = 0x53;
-  payload[2] = FORMAT_VERSION;
-  writeUint32(payload, 3, regionIds.length);
-  writeUint32(payload, 7, fingerprint[0]);
-  writeUint32(payload, 11, fingerprint[1]);
-
+  const regionIds = validateCatalog(catalog);
+  validateVisitedIds(ids, regionIds);
+  const payload = createPayload(descriptorFromCatalog(catalog, regionIds));
   const visited = new Set(ids);
   for (let index = 0; index < regionIds.length; index += 1) {
     if (visited.has(regionIds[index])) {
       payload[HEADER_BYTES + Math.floor(index / 8)] |= 1 << (7 - (index % 8));
     }
+  }
+  return CODEWORD_PREFIX + encodeBase64Url(payload);
+}
+
+/**
+ * Describe the catalog fields required to encode/decode indices without the
+ * full region ID list.
+ *
+ * @param {{version: string, regionIds: string[]}} catalog
+ * @returns {{version: string, regionCount: number, fingerprint: [number, number]}}
+ */
+export function describeCatalog(catalog) {
+  const regionIds = validateCatalog(catalog);
+  return descriptorFromCatalog(catalog, regionIds);
+}
+
+/**
+ * Encode catalog indices as a compact, catalog-bound base64url codeword.
+ *
+ * @param {number[]} indices
+ * @param {{version: string, regionCount: number, fingerprint: [number, number]}} descriptor
+ * @returns {string}
+ */
+export function encodeVisitedIndices(indices, descriptor) {
+  const validDescriptor = validateDescriptor(descriptor);
+  validateIndices(indices, validDescriptor.regionCount);
+  const payload = createPayload(validDescriptor);
+
+  for (const index of indices) {
+    payload[HEADER_BYTES + Math.floor(index / 8)] |= 1 << (7 - (index % 8));
   }
 
   return CODEWORD_PREFIX + encodeBase64Url(payload);
@@ -77,56 +98,22 @@ export function encodeVisited(ids, catalog) {
  */
 export function decodeVisited(codeword, catalog) {
   const regionIds = validateCatalog(catalog);
+  const descriptor = descriptorFromCatalog(catalog, regionIds);
+  const indices = indicesFromPayload(parseCodeword(codeword, descriptor), descriptor.regionCount);
+  return indices.map(index => regionIds[index]);
+}
 
-  if (typeof codeword !== 'string' || !codeword.startsWith(CODEWORD_PREFIX)) {
-    throw new TypeError('JourneySphere codeword must be a js1_ string.');
-  }
-
-  const encodedPayload = codeword.slice(CODEWORD_PREFIX.length);
-  const payload = decodeBase64Url(encodedPayload);
-
-  if (payload.length < HEADER_BYTES) {
-    throw new RangeError('JourneySphere codeword payload is truncated.');
-  }
-  if (payload[0] !== 0x4a || payload[1] !== 0x53 || payload[2] !== FORMAT_VERSION) {
-    throw new RangeError('JourneySphere codeword has an unsupported format.');
-  }
-
-  const encodedRegionCount = readUint32(payload, 3);
-  const expectedLength = HEADER_BYTES + Math.ceil(encodedRegionCount / 8);
-  if (payload.length !== expectedLength) {
-    throw new RangeError('JourneySphere codeword has an invalid payload length.');
-  }
-  if (encodedRegionCount !== regionIds.length) {
-    throw new RangeError('JourneySphere codeword does not match this catalog.');
-  }
-
-  const expectedFingerprint = catalogFingerprint(catalog);
-  if (
-    readUint32(payload, 7) !== expectedFingerprint[0] ||
-    readUint32(payload, 11) !== expectedFingerprint[1]
-  ) {
-    throw new RangeError('JourneySphere codeword does not match this catalog.');
-  }
-
-  const unusedBits = (8 - (encodedRegionCount % 8)) % 8;
-  if (unusedBits > 0) {
-    const finalByte = payload[payload.length - 1];
-    const paddingMask = (1 << unusedBits) - 1;
-    if ((finalByte & paddingMask) !== 0) {
-      throw new RangeError('JourneySphere codeword contains non-zero padding bits.');
-    }
-  }
-
-  const ids = [];
-  for (let index = 0; index < regionIds.length; index += 1) {
-    const byte = payload[HEADER_BYTES + Math.floor(index / 8)];
-    if ((byte & (1 << (7 - (index % 8)))) !== 0) {
-      ids.push(regionIds[index]);
-    }
-  }
-
-  return ids;
+/**
+ * Decode a codeword into sorted catalog indices.
+ *
+ * @param {string} codeword
+ * @param {{version: string, regionCount: number, fingerprint: [number, number]}} descriptor
+ * @returns {number[]}
+ */
+export function decodeVisitedIndices(codeword, descriptor) {
+  const validDescriptor = validateDescriptor(descriptor);
+  const payload = parseCodeword(codeword, validDescriptor);
+  return indicesFromPayload(payload, validDescriptor.regionCount);
 }
 
 function validateCatalog(catalog) {
@@ -155,6 +142,98 @@ function validateCatalog(catalog) {
   }
 
   return catalog.regionIds;
+}
+
+function validateDescriptor(descriptor) {
+  if (descriptor === null || typeof descriptor !== 'object' || Array.isArray(descriptor)) {
+    throw new TypeError('Catalog descriptor must be an object.');
+  }
+  if (typeof descriptor.version !== 'string' || descriptor.version.length === 0) {
+    throw new TypeError('Catalog descriptor version must be a non-empty string.');
+  }
+  if (!Number.isInteger(descriptor.regionCount) || descriptor.regionCount < 0 || descriptor.regionCount > MAX_UINT32) {
+    throw new RangeError('Catalog descriptor regionCount must be a uint32.');
+  }
+  if (!Array.isArray(descriptor.fingerprint) || descriptor.fingerprint.length !== 2 ||
+      descriptor.fingerprint.some(value => !Number.isInteger(value) || value < 0 || value > MAX_UINT32)) {
+    throw new RangeError('Catalog descriptor fingerprint must contain two uint32 values.');
+  }
+  return descriptor;
+}
+
+function descriptorFromCatalog(catalog, regionIds) {
+  return {
+    version: catalog.version,
+    regionCount: regionIds.length,
+    fingerprint: catalogFingerprint(catalog),
+  };
+}
+
+function validateIndices(indices, regionCount) {
+  if (!Array.isArray(indices)) throw new TypeError('Visited region indices must be an array.');
+  const seen = new Set();
+  for (const index of indices) {
+    if (!Number.isInteger(index) || index < 0 || index >= regionCount) {
+      throw new RangeError(`Visited region index is out of range: ${index}`);
+    }
+    if (seen.has(index)) throw new RangeError(`Duplicate visited region index: ${index}`);
+    seen.add(index);
+  }
+}
+
+function createPayload(descriptor) {
+  const payload = new Uint8Array(HEADER_BYTES + Math.ceil(descriptor.regionCount / 8));
+  payload[0] = 0x4a;
+  payload[1] = 0x53;
+  payload[2] = FORMAT_VERSION;
+  writeUint32(payload, 3, descriptor.regionCount);
+  writeUint32(payload, 7, descriptor.fingerprint[0]);
+  writeUint32(payload, 11, descriptor.fingerprint[1]);
+  return payload;
+}
+
+function indicesFromPayload(payload, regionCount) {
+  const indices = [];
+  for (let index = 0; index < regionCount; index += 1) {
+    const byte = payload[HEADER_BYTES + Math.floor(index / 8)];
+    if ((byte & (1 << (7 - (index % 8)))) !== 0) indices.push(index);
+  }
+  return indices;
+}
+
+function parseCodeword(codeword, descriptor) {
+  if (typeof codeword !== 'string' || !codeword.startsWith(CODEWORD_PREFIX)) {
+    throw new TypeError('JourneySphere codeword must be a js1_ string.');
+  }
+
+  const payload = decodeBase64Url(codeword.slice(CODEWORD_PREFIX.length));
+  if (payload.length < HEADER_BYTES) {
+    throw new RangeError('JourneySphere codeword payload is truncated.');
+  }
+  if (payload[0] !== 0x4a || payload[1] !== 0x53 || payload[2] !== FORMAT_VERSION) {
+    throw new RangeError('JourneySphere codeword has an unsupported format.');
+  }
+
+  const encodedRegionCount = readUint32(payload, 3);
+  const expectedLength = HEADER_BYTES + Math.ceil(encodedRegionCount / 8);
+  if (payload.length !== expectedLength) {
+    throw new RangeError('JourneySphere codeword has an invalid payload length.');
+  }
+  if (encodedRegionCount !== descriptor.regionCount ||
+      readUint32(payload, 7) !== descriptor.fingerprint[0] ||
+      readUint32(payload, 11) !== descriptor.fingerprint[1]) {
+    throw new RangeError('JourneySphere codeword does not match this catalog.');
+  }
+
+  const unusedBits = (8 - (encodedRegionCount % 8)) % 8;
+  if (unusedBits > 0) {
+    const finalByte = payload[payload.length - 1];
+    const paddingMask = (1 << unusedBits) - 1;
+    if ((finalByte & paddingMask) !== 0) {
+      throw new RangeError('JourneySphere codeword contains non-zero padding bits.');
+    }
+  }
+  return payload;
 }
 
 function catalogFingerprint({ version, regionIds }) {

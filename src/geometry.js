@@ -1,5 +1,4 @@
-const featureLongitudeAnchors = new WeakMap();
-const featureLongitudeRanges = new WeakMap();
+const featureLongitudeStats = new WeakMap();
 const mergedDatelineGeometries = new WeakMap();
 
 function featuresNearLongitude(features, mapLongitude) {
@@ -36,38 +35,30 @@ function markWorldCopy(feature, offset) {
 }
 
 function featureCrossesDateline(feature) {
-  const { min, max } = featureLongitudeRange(feature);
+  const { min, max } = featureLongitudeStatsFor(feature);
   return max - min > 180;
 }
 
-function featureLongitudeRange(feature) {
-  if (featureLongitudeRanges.has(feature)) return featureLongitudeRanges.get(feature);
+function featureLongitudeAnchor(feature) {
+  const stats = featureLongitudeStatsFor(feature);
+  return stats.count ? stats.total / stats.count : 0;
+}
+
+function featureLongitudeStatsFor(feature) {
+  if (featureLongitudeStats.has(feature)) return featureLongitudeStats.get(feature);
   let min = Infinity;
   let max = -Infinity;
-
+  let total = 0;
+  let count = 0;
   visitCoordinateLongitudes(feature.geometry?.coordinates, (longitude) => {
     min = Math.min(min, longitude);
     max = Math.max(max, longitude);
-  });
-
-  const range = min === Infinity ? { min: 0, max: 0 } : { min, max };
-  featureLongitudeRanges.set(feature, range);
-  return range;
-}
-
-function featureLongitudeAnchor(feature) {
-  if (featureLongitudeAnchors.has(feature)) return featureLongitudeAnchors.get(feature);
-  let total = 0;
-  let count = 0;
-
-  visitCoordinateLongitudes(feature.geometry?.coordinates, (longitude) => {
     total += longitude;
     count += 1;
   });
-
-  const anchor = count ? total / count : 0;
-  featureLongitudeAnchors.set(feature, anchor);
-  return anchor;
+  const stats = count ? { min, max, total, count } : { min: 0, max: 0, total: 0, count: 0 };
+  featureLongitudeStats.set(feature, stats);
+  return stats;
 }
 
 function visitCoordinateLongitudes(coordinates, visit) {
@@ -253,19 +244,18 @@ function longitudeOffset(anchor, mapLongitude) {
 }
 
 function coordinatePartLongitudeAnchor(coordinates) {
-  const longitudes = [];
-  visitCoordinateLongitudes(coordinates, (longitude) => longitudes.push(longitude));
-  if (!longitudes.length) return 0;
-
-  const reference = longitudes[0];
+  let reference;
   let total = 0;
-  longitudes.forEach((longitude) => {
+  let count = 0;
+  visitCoordinateLongitudes(coordinates, (longitude) => {
+    if (count === 0) reference = longitude;
     let unwrapped = longitude;
     while (unwrapped - reference > 180) unwrapped -= 360;
     while (unwrapped - reference < -180) unwrapped += 360;
     total += unwrapped;
+    count += 1;
   });
-  return total / longitudes.length;
+  return count ? total / count : 0;
 }
 
 function shiftGeometryLongitude(geometry, offset) {

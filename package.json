@@ -7,6 +7,7 @@
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js",
+    "./compiled": "./src/compiled.js",
     "./state": "./src/state.js",
     "./style.css": "./src/style.css",
     "./data/*": "./data/*"
@@ -29,10 +30,11 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "check": "node --check src/index.js && node --check src/geometry.js && node --check src/state.js && npm test",
+    "check": "node --check src/index.js && node --check src/compiled.js && node --check src/compiled-layer.js && node --check src/geometry.js && node --check src/state.js && npm test",
     "pack:check": "npm pack --dry-run",
     "validate:data": "node scripts/validate-atlas.mjs",
-    "build:data": "node scripts/build-atlas.mjs"
+    "build:data": "node scripts/build-atlas.mjs && npm run build:compiled",
+    "build:compiled": "node scripts/build-compiled-atlas.mjs"
   },
   "engines": {
     "node": ">=20"

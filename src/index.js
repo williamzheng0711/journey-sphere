@@ -19,18 +19,61 @@ async function readJSON(url, signal) {
   return response.json();
 }
 
-/** Load a self-hosted atlas. Geometry is fetched only for selected countries. */
-export async function loadAtlas(dataUrl = DEFAULT_DATA_URL, { signal } = {}) {
+function withSignal(promise, signal) {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener('abort', abort, { once: true });
+    promise.then(value => {
+      signal.removeEventListener('abort', abort);
+      resolve(value);
+    }, error => {
+      signal.removeEventListener('abort', abort);
+      reject(error);
+    });
+  });
+}
+
+/** Load an atlas, optionally warming only the countries in an initial selection. */
+export async function loadAtlas(dataUrl = DEFAULT_DATA_URL, { signal, visited, codeword } = {}) {
   const base = new URL(String(dataUrl).replace(/\/?$/, '/'), globalThis.location?.href || import.meta.url);
+  const preloaded = new Map();
+  const catalogRequest = readJSON(new URL('catalog.json', base), signal);
+  const countryData = (catalog, code, countrySignal = signal) => {
+    const entry = catalog.countries[code];
+    if (!entry?.file) return Promise.resolve(EMPTY);
+    return readJSON(new URL(entry.file, base), countrySignal);
+  };
+  // Start selected shards as soon as the catalog arrives, overlapping the world
+  // download instead of waiting for world parsing and Leaflet initialization.
+  const preparedCatalog = catalogRequest.then(catalog => {
+    if (visited === undefined && !codeword) return catalog;
+    const initial = codeword ? decodeVisited(codeword, catalog) : visited;
+    validateVisited(initial, catalog);
+    for (const code of new Set(initial.map(id => id.split(':')[0]))) {
+      const request = countryData(catalog, code);
+      // Keep failures available to the consumer without an unhandled rejection
+      // while the world is still loading. Preloads never delay the base map.
+      request.catch(() => {});
+      preloaded.set(code, request);
+    }
+    return catalog;
+  });
   const [world, catalog, palette] = await Promise.all([
     readJSON(new URL('world.geojson', base), signal),
-    readJSON(new URL('catalog.json', base), signal),
+    preparedCatalog,
     readJSON(new URL('palette.json', base), signal),
   ]);
   return { world, catalog, palette, loadCountry: (code, { signal: countrySignal } = {}) => {
-    const entry = catalog.countries[code];
-    if (!entry?.file) return Promise.resolve(EMPTY);
-    return readJSON(new URL(entry.file, base), countrySignal || signal);
+    const requestSignal = countrySignal || signal;
+    if (requestSignal?.aborted) return Promise.reject(requestSignal.reason);
+    if (preloaded.has(code)) {
+      const request = preloaded.get(code);
+      preloaded.delete(code);
+      return withSignal(request, requestSignal);
+    }
+    return countryData(catalog, code, requestSignal);
   }};
 }
 
@@ -40,7 +83,18 @@ export async function createJourneySphere(container, options = {}) {
   if (!L?.map || !L?.geoJSON) throw new TypeError('JourneySphere requires Leaflet 1.9.4.');
   if (typeof container === 'string') container = document.querySelector(container);
   if (!container) throw new TypeError('JourneySphere requires a map container.');
-  const atlas = options.atlas || await loadAtlas(options.dataUrl);
+  const opacity = options.fillOpacity ?? 0.44;
+  if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new RangeError('fillOpacity must be between 0 and 1.');
+  const requests = new AbortController();
+  let atlas;
+  try {
+    atlas = options.atlas || await loadAtlas(options.dataUrl, {
+      signal: requests.signal, visited: options.visited || undefined, codeword: options.codeword,
+    });
+  } catch (error) {
+    requests.abort();
+    throw error;
+  }
   const { world, catalog, palette } = atlas;
   const stateCatalog = { version: catalog.version, regionIds: catalog.regionIds };
   const initial = options.codeword ? decodeVisited(options.codeword, stateCatalog) : (options.visited || []);
@@ -49,8 +103,6 @@ export async function createJourneySphere(container, options = {}) {
   const original = [...visited];
   const center = options.center || [31.5, 121.8];
   const zoom = options.zoom ?? 4;
-  const opacity = options.fillOpacity ?? 0.44;
-  if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new RangeError('fillOpacity must be between 0 and 1.');
   const minimumZoom = () => Math.max(2, options.mapOptions?.minZoom ?? 2, Math.ceil(Math.log2(Math.max(container.clientWidth, container.clientHeight) * 1.2 / 256) * 2) / 2);
   container.classList.add('journeysphere');
   const map = L.map(container, {
@@ -67,7 +119,6 @@ export async function createJourneySphere(container, options = {}) {
   let destroyed = false;
   let revision = 0;
   let selectionRequest = 0;
-  const requests = new AbortController();
   const loaded = new Map();
   const pending = new Map();
   const parentByRegion = new Map();
@@ -136,12 +187,15 @@ export async function createJourneySphere(container, options = {}) {
             layer.options = { ...layer.options, interactive: false };
             return;
           }
-          const label = document.createElement('span');
-          label.textContent = options.labels?.[feature.properties.id] || feature.properties.name;
+          let label;
           let tooltipBound = false;
           const syncTooltip = () => {
             const shouldShow = visited.has(feature.properties.id);
             if (shouldShow && !tooltipBound) {
+              if (!label) {
+                label = document.createElement('span');
+                label.textContent = options.labels?.[feature.properties.id] || feature.properties.name;
+              }
               layer.bindTooltip(label, { sticky: true });
               tooltipBound = true;
             } else if (!shouldShow && tooltipBound) {

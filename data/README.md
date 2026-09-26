@@ -65,3 +65,11 @@ python scripts/simplify-world.py \
 ```
 
 The build is deterministic when `JOURNEY_SPHERE_GENERATED_AT` is omitted. Source acquisition is kept outside the build so releases can pin and archive exact inputs rather than silently downloading mutable `current` URLs.
+
+## Precompiled rendering data
+
+`npm run build:compiled` derives `compiled/` from the checked-in atlas without changing region IDs or codeword order. `compiled/manifest.js` and `manifest.json` describe the catalog fingerprint, country index ranges, colors, and shard paths. `compiled/world.json` and `compiled/countries/<ISO3>.json` contain reusable SVG path commands in projected Web Mercator coordinates. They are consumed as native Canvas `Path2D` objects by the compiled renderer.
+
+Coordinates are rounded to an integer grid of extent `2^24`: each axis has at most half a grid unit of quantization error (0.03125 CSS pixels at zoom 12). This is quantization only; no extra topology simplification is applied. Polygon holes and existing seam normalization are retained; parent outlines omit internal holes as in the original renderer. The same source licenses and attribution apply.
+
+A failed build leaves the previous complete compiled directory intact. Commit or deploy the manifest and generated shards together. The browser still downloads geometry on a first visit; production hosting should serve these static files with compression and versioned caching. The compiled files do not contain user visit history.

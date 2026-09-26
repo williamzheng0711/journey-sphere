@@ -2,7 +2,7 @@
 
 JourneySphere 是一個可重用的 Leaflet 地圖元件，用來顯示使用者去過哪些國家與行政區。
 
-它會把已造訪的區域填色，點擊即可切換狀態；地圖資料按國家延遲載入，適合旅行地圖、個人網站或小型旅遊工具。
+它會把已造訪的區域填色，點擊即可切換狀態；地圖形狀預先編譯，資料按國家延遲載入，適合旅行地圖、個人網站或小型旅遊工具。
 
 ![JourneySphere 40 個已造訪行政區示意圖](docs/journeysphere-demo.svg)
 
@@ -15,10 +15,10 @@ JourneySphere 是一個可重用的 Leaflet 地圖元件，用來顯示使用者
 ```js
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { createJourneySphere } from './src/index.js';
+import { createCompiledJourneySphere } from './src/compiled.js';
 import './src/style.css';
 
-const journey = await createJourneySphere('#map', {
+const journey = await createCompiledJourneySphere('#map', {
   leaflet: L,
   dataUrl: '/journeysphere-data/',
   visited: [], // 使用 data/catalog.json 裡的 region ID
@@ -27,6 +27,18 @@ const journey = await createJourneySphere('#map', {
 ```
 
 地圖容器需要指定高度，例如 `#map { height: 580px; }`。把 `data/` 複製到網站的 `/journeysphere-data/`，或直接參考 [範例](examples/index.html)。
+
+推薦使用預先編譯版本。它會同時下載世界底圖與已造訪國家的形狀，直接在 Canvas 畫布套用 0／1 造訪狀態。座標投影、跨日期線處理和行政區索引都在建置時完成，瀏覽器不必重新計算，也不必先下載完整的區域目錄。沒去過的國家保持留白；已造訪區域上色，並保留原有的行政區邊界顯示規則。
+
+- 套件使用者可從 `@williamzheng0711/journey-sphere/compiled` 匯入 `createCompiledJourneySphere`。
+- 原本的 region ID 和 `js1_` codeword 可直接沿用，`codeword` 優先於 `visited`。
+- 若需要目錄來建立搜尋器或選單，使用 `await journey.loadCatalog()`；新版不提供同步的 `journey.catalog`。
+- 支援原有的狀態、配色、標籤、縮放及回呼選項；需要 Canvas `Path2D` 和 Leaflet 預設的 `CRS.EPSG3857`。`signal` 可取消載入並銷毀地圖。
+- 將 `data/compiled/` 與程式中的 `data/compiled/manifest.js` 一起更新。自訂 atlas 要先執行 `npm run build:compiled`，並透過 `manifest` 選項傳入對應的 manifest。不要混用不同版本。
+
+原有 `createJourneySphere` 仍從 `src/index.js`（套件根路徑）匯出，保留完整的 `catalog` 和 `atlas` API。它也會重疊下載已造訪國家的資料並延後建立標籤，但仍使用 GeoJSON 渲染。既有使用者需將匯入及建立函式改為上面的編譯版本，才能使用新的繪圖方式。若保留原版並自行載入 atlas，可呼叫 `loadAtlas(dataUrl, { visited, codeword, signal })` 提早開始國家資料請求。
+
+效能對照的重現方式與測量範圍請看 [效能測試](docs/performance.md)。
 
 ## 主要功能
 
@@ -44,5 +56,6 @@ const journey = await createJourneySphere('#map', {
 npm test
 npm run check
 npm run validate:data
+npm run build:compiled
 npm run pack:check
 ```

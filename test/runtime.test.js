@@ -113,6 +113,25 @@ test('only visited regions expose hover labels, and labels follow visit toggles'
   });
 });
 
+test('label elements are created only when visited and reused after toggling', async () => {
+  await withDom(async ({ elements }) => {
+    const leaflet = createLeafletMock();
+    const sphere = await createJourneySphere(createContainer(), {
+      atlas: createAtlas(), leaflet, visited: ['AA:r1'],
+      labels: { 'AA:r2': '<b>Custom region</b>' },
+    });
+    const labels = () => elements.filter(item => item.tag === 'span');
+    assert.equal(labels().length, 3, 'Only the selected region needs a label in each world copy');
+    await sphere.setVisited(['AA:r1', 'AA:r2']);
+    assert.equal(labels().length, 6);
+    assert.equal(labels().at(-1).element.textContent, '<b>Custom region</b>');
+    await sphere.setVisited(['AA:r1']);
+    await sphere.setVisited(['AA:r1', 'AA:r2']);
+    assert.equal(labels().length, 6, 'Reselecting a region reuses its label');
+    sphere.destroy();
+  });
+});
+
 test('feature clicks toggle visits and reset restores the initial selection and view', async () => {
   await withDom(async () => {
     const leaflet = createLeafletMock();
@@ -460,9 +479,14 @@ async function withDom(run) {
   const previousDocument = globalThis.document;
   const previousResizeObserver = globalThis.ResizeObserver;
   const observers = [];
+  const elements = [];
 
   globalThis.document = {
-    createElement,
+    createElement(tag) {
+      const element = createElement();
+      elements.push({ tag, element });
+      return element;
+    },
     querySelector: () => null,
   };
   globalThis.ResizeObserver = class {
@@ -476,7 +500,7 @@ async function withDom(run) {
   };
 
   try {
-    await run({ observers });
+    await run({ observers, elements });
   } finally {
     if (previousDocument === undefined) delete globalThis.document;
     else globalThis.document = previousDocument;

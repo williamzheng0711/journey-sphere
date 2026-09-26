@@ -31,3 +31,13 @@ test('empty polygon parts do not crash polar-cap detection', () => {
   const empty = {...feature,geometry:{type:'MultiPolygon',coordinates:[[]]}};
   assert.doesNotThrow(()=>featuresNearLongitudeCopies([empty],0));
 });
+test('preserves coordinate altitude and does not mutate 3D input', () => {
+  const input = {
+    ...feature,
+    geometry: { type: 'Polygon', coordinates: [[[179, 0, 120], [180, 1, 121], [179, 0, 120]]] },
+  };
+  const before = structuredClone(input);
+  const copies = featuresNearLongitudeCopies([input], 180);
+  assert.deepEqual(copies.map(copy => copy.geometry.coordinates[0][0]), [[179, 0, 120], [-181, 0, 120], [539, 0, 120]]);
+  assert.deepEqual(input, before);
+});
