@@ -44,6 +44,24 @@ function validatePayload(data, manifest) {
   return data;
 }
 
+function parseCountry(data, code, manifest, allowSubset = false) {
+  const entry = manifest.countries[code];
+  validatePayload(data, manifest);
+  const byId = new Map();
+  const byIndex = new Map();
+  for (const feature of data.features) {
+    if (typeof feature.id !== 'string' || !feature.id.startsWith(`${code}:`) || feature.countryCode !== code ||
+        !Number.isInteger(feature.index) || feature.index < entry.start || feature.index >= entry.start + entry.count ||
+        byId.has(feature.id) || byIndex.has(feature.index)) {
+      throw new Error(`JourneySphere: invalid compiled region index for ${code}.`);
+    }
+    byId.set(feature.id, feature);
+    byIndex.set(feature.index, feature);
+  }
+  if (!allowSubset && byId.size !== entry.count) throw new Error(`JourneySphere: incomplete compiled country ${code}.`);
+  return { ...data, byId, byIndex };
+}
+
 /** Start world and selected-country downloads together, without the full catalog. */
 export function loadCompiledAtlas(dataUrl = DEFAULT_DATA_URL, { signal, manifest = bundledManifest } = {}) {
   validateManifest(manifest);
@@ -72,20 +90,7 @@ export function loadCompiledAtlas(dataUrl = DEFAULT_DATA_URL, { signal, manifest
     if (!entry?.file) throw new RangeError(`Unknown selectable country: ${code}`);
     const requestGeneration = generation;
     const request = read(entry.file).then(data => {
-      validatePayload(data, manifest);
-      const byId = new Map();
-      const byIndex = new Map();
-      for (const feature of data.features) {
-        if (typeof feature.id !== 'string' || !feature.id.startsWith(`${code}:`) || feature.countryCode !== code ||
-            !Number.isInteger(feature.index) || feature.index < entry.start || feature.index >= entry.start + entry.count ||
-            byId.has(feature.id) || byIndex.has(feature.index)) {
-          throw new Error(`JourneySphere: invalid compiled region index for ${code}.`);
-        }
-        byId.set(feature.id, feature);
-        byIndex.set(feature.index, feature);
-      }
-      if (byId.size !== entry.count) throw new Error(`JourneySphere: incomplete compiled country ${code}.`);
-      const country = { ...data, byId, byIndex };
+      const country = parseCountry(data, code, manifest);
       if (requestGeneration === generation) loaded.set(code, country);
       return country;
     });
@@ -161,6 +166,16 @@ export async function createCompiledJourneySphere(container, options = {}) {
   const initialInput = options.visited || [];
   const initialCodes = initialIndices ? codesForIndices(initialIndices, manifest) : countryCodes(initialInput, manifest);
   const initialIds = initialIndices ? null : [...initialInput];
+  const bootstrap = new Map();
+  if (options.initialCountries !== undefined) {
+    if (options.initialCountries === null || typeof options.initialCountries !== 'object' || Array.isArray(options.initialCountries)) {
+      throw new TypeError('initialCountries must be an object keyed by country code.');
+    }
+    for (const [code, data] of Object.entries(options.initialCountries)) {
+      if (!manifest.countries[code]?.file) throw new RangeError(`Unknown initial country: ${code}`);
+      bootstrap.set(code, parseCountry(data, code, manifest, true));
+    }
+  }
   const requests = new AbortController();
   let map;
   let layer;
@@ -168,6 +183,7 @@ export async function createCompiledJourneySphere(container, options = {}) {
   let resizeObserver;
   let destroyed = false;
   let selectionRequest = 0;
+  let detailsReady = Promise.resolve();
   const abort = () => { requests.abort(options.signal.reason); destroy(); };
   options.signal?.addEventListener('abort', abort, { once: true });
   function destroy() {
@@ -184,9 +200,20 @@ export async function createCompiledJourneySphere(container, options = {}) {
   }
   try {
     atlas = loadCompiledAtlas(options.dataUrl, { signal: requests.signal, manifest });
-    const [world] = await Promise.all([atlas.world, ...initialCodes.map(atlas.loadCountry)]);
+    const bootstrapReady = code => {
+      const country = bootstrap.get(code);
+      if (!country) return false;
+      if (initialIndices) {
+        const entry = manifest.countries[code];
+        return initialIndices.every(index => index < entry.start || index >= entry.start + entry.count || country.byIndex.has(index));
+      }
+      return initialIds.every(id => id.split(':')[0] !== code || country.byId.has(id));
+    };
+    const startupCountries = initialCodes.filter(code => !bootstrapReady(code));
+    const [world] = await Promise.all([atlas.world, ...startupCountries.map(atlas.loadCountry)]);
     if (destroyed) throw requests.signal.reason;
-    const recordFor = id => atlas.loaded.get(id.split(':')[0])?.byId.get(id);
+    const countryFor = code => atlas.loaded.get(code) || bootstrap.get(code);
+    const recordFor = id => countryFor(id.split(':')[0])?.byId.get(id);
     function validateIds(ids) {
       return ids.map(id => {
         const record = recordFor(id);
@@ -195,7 +222,7 @@ export async function createCompiledJourneySphere(container, options = {}) {
       });
     }
     const idsForIndices = indices => {
-      const records = new Map([...atlas.loaded.values()].flatMap(country => [...country.byIndex]));
+      const records = new Map([...bootstrap.values(), ...atlas.loaded.values()].flatMap(country => [...country.byIndex]));
       return indices.map(index => {
         const record = records.get(index);
         if (!record) throw new RangeError(`Unknown compiled region index: ${index}`);
@@ -242,7 +269,15 @@ export async function createCompiledJourneySphere(container, options = {}) {
       const codes = fromCodeword ? codesForIndices(values, manifest) : countryCodes(values, manifest);
       const snapshot = [...values];
       const request = ++selectionRequest;
-      await Promise.all(codes.map(atlas.loadCountry));
+      const needsFullCountry = code => {
+        const country = bootstrap.get(code);
+        if (!country) return true;
+        const entry = manifest.countries[code];
+        return snapshot.some(value => fromCodeword
+          ? value >= entry.start && value < entry.start + entry.count && !country.byIndex.has(value)
+          : value.split(':')[0] === code && !country.byId.has(value));
+      };
+      await Promise.all(codes.filter(needsFullCountry).map(atlas.loadCountry));
       const next = fromCodeword ? idsForIndices(snapshot) : snapshot;
       const nextIndices = validateIds(next);
       if (destroyed || request !== selectionRequest) return;
@@ -255,7 +290,7 @@ export async function createCompiledJourneySphere(container, options = {}) {
     }
     layer = createCompiledLayer(L, {
       world, extent: manifest.extent,
-      getCountries: () => [...active].map(code => atlas.loaded.get(code)),
+      getCountries: () => [...active].map(countryFor).filter(Boolean),
       getVisited: () => visited,
       colorFor: code => options.colors?.[code] || manifest.countries[code]?.color || '#64748b',
       fillOpacity: opacity, labels: options.labels || {}, interactive: options.interactive !== false,
@@ -269,6 +304,29 @@ export async function createCompiledJourneySphere(container, options = {}) {
     const resize = () => { if (!destroyed) { map.invalidateSize({ pan: false }); map.setMinZoom(minimumZoom()); } };
     resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
     resizeObserver?.observe(container);
+    const loadInitialDetails = async () => {
+      if (destroyed) return;
+      const results = await Promise.allSettled(initialCodes.map(async code => {
+        const country = await atlas.loadCountry(code);
+        if (!destroyed && country && layer) layer.refresh();
+        return country;
+      }));
+      const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
+      for (const error of errors) emitError(error);
+      if (errors.length) throw errors.length === 1 ? errors[0] : new AggregateError(errors, 'JourneySphere country details failed.');
+    };
+    const nextFrame = () => new Promise(resolve => {
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
+      else setTimeout(resolve, 0);
+    });
+    detailsReady = (async () => {
+      await nextFrame();
+      if (destroyed) return;
+      await nextFrame();
+      if (destroyed) return;
+      await loadInitialDetails();
+    })();
+    detailsReady.catch(() => {});
     let clamping = false;
     map.on('moveend', () => {
       if (clamping || destroyed || map.dragging?.moving()) return;
@@ -287,6 +345,7 @@ export async function createCompiledJourneySphere(container, options = {}) {
       setVisited: ids => update(ids), setCodeword: word => update(word, true),
       reset: async () => { await update(original); if (!destroyed) map.setView(center, zoom); },
       loadCatalog: () => { if (destroyed) throw new Error('JourneySphere has been destroyed.'); return atlas.loadCatalog(); },
+      detailsReady,
       destroy,
     };
   } catch (error) {

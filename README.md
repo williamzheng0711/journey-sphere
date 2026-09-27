@@ -59,3 +59,52 @@ npm run validate:data
 npm run build:compiled
 npm run pack:check
 ```
+
+## Progressive startup and static deployments
+
+JourneySphere is the source of truth for rendering, progressive loading, geometry
+preparation and map behavior tests. Consumer websites own their HTML/CSS, visit
+records, integration adapters and page benchmarks. Do not patch a deployed copy
+of the renderer in a website.
+
+`initialCountries` accepts a map of country codes to partial compiled payloads
+containing the selected regions. Geometry, region indices and atlas fingerprints
+are preserved. The initial map can render these regions before full country
+shards arrive. `journey.detailsReady` resolves when initial-country details finish
+loading, or rejects on download failure; the initial map remains usable. Handle
+that promise or use `onError` when the application needs to report detail errors.
+Without `initialCountries`, the existing full-country startup is retained.
+
+Build a consumer deployment from this project:
+
+```sh
+node scripts/export-static.mjs --record /path/to/visits.json --out /path/to/site/packages/journey-sphere
+```
+
+The record contains `atlasVersion`, `visited` region IDs, and optional `labels`.
+By default the export includes all compiled country shards. To copy only visited
+countries and use a compatible pinned release for other countries, add
+`--fallback-data-url https://your-host/pinned-release/data/`. The caller owns this
+hosting choice. Export fetches the fallback manifest and rejects a release that
+does not match the source atlas; runtime payload validation also rejects mismatches.
+The exporter validates selections and writes canonical source files, data,
+`data/startup.json`, licensing and source/output SHA-256 hashes. A source Git
+commit is recorded when available, but hashes also capture uncommitted changes.
+Use a dedicated output directory; rerunning overwrites generated files without
+requiring manual map patches. Unreferenced files from earlier exports are left
+in place and are not loaded by the generated manifest.
+
+The consumer reads `data/startup.json` and passes its `visited`, `labels`, and
+`countries` (as `initialCountries`) to `createCompiledJourneySphere`. Keep runtime,
+manifest and data together when deploying. A website can check deployed file
+hashes against `export-manifest.json` to detect accidental edits.
+
+Run map regression checks here:
+
+```sh
+npm run check
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/test-map-progressive.mjs
+```
+
+The browser check needs an existing Playwright installation and Google Chrome.
+Its sample visits come from this project's atlas, not a consumer website.
