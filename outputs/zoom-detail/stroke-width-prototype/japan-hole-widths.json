@@ -1,0 +1,712 @@
+{
+  "seam-area": {
+    "center": [
+      33.6,
+      130.65
+    ],
+    "count": 42,
+    "min": 1,
+    "median": 30,
+    "max": 58,
+    "retainedAtThreshold8": 38,
+    "retainedAtThreshold64": 0,
+    "rings": [
+      {
+        "index": 334,
+        "width": 58,
+        "bounds": [
+          14486310,
+          6721724,
+          14487010,
+          6721894
+        ],
+        "widthPixelsAtZoom12": 3.625
+      },
+      {
+        "index": 283,
+        "width": 56,
+        "bounds": [
+          14481497,
+          6718631,
+          14481899,
+          6718827
+        ],
+        "widthPixelsAtZoom12": 3.5
+      },
+      {
+        "index": 296,
+        "width": 52,
+        "bounds": [
+          14482668,
+          6723705,
+          14483073,
+          6723859
+        ],
+        "widthPixelsAtZoom12": 3.25
+      },
+      {
+        "index": 324,
+        "width": 52,
+        "bounds": [
+          14485513,
+          6730675,
+          14486326,
+          6730874
+        ],
+        "widthPixelsAtZoom12": 3.25
+      },
+      {
+        "index": 328,
+        "width": 50,
+        "bounds": [
+          14485834,
+          6724913,
+          14486441,
+          6725183
+        ],
+        "widthPixelsAtZoom12": 3.125
+      },
+      {
+        "index": 256,
+        "width": 47,
+        "bounds": [
+          14478400,
+          6730026,
+          14478843,
+          6730464
+        ],
+        "widthPixelsAtZoom12": 2.9375
+      },
+      {
+        "index": 266,
+        "width": 46,
+        "bounds": [
+          14479883,
+          6723085,
+          14480361,
+          6723498
+        ],
+        "widthPixelsAtZoom12": 2.875
+      },
+      {
+        "index": 249,
+        "width": 45,
+        "bounds": [
+          14477434,
+          6724612,
+          14477816,
+          6724802
+        ],
+        "widthPixelsAtZoom12": 2.8125
+      },
+      {
+        "index": 207,
+        "width": 42,
+        "bounds": [
+          14471016,
+          6727975,
+          14471288,
+          6728328
+        ],
+        "widthPixelsAtZoom12": 2.625
+      },
+      {
+        "index": 261,
+        "width": 42,
+        "bounds": [
+          14478993,
+          6719575,
+          14479927,
+          6719792
+        ],
+        "widthPixelsAtZoom12": 2.625
+      },
+      {
+        "index": 257,
+        "width": 41,
+        "bounds": [
+          14478545,
+          6718608,
+          14478880,
+          6718953
+        ],
+        "widthPixelsAtZoom12": 2.5625
+      },
+      {
+        "index": 254,
+        "width": 40,
+        "bounds": [
+          14478098,
+          6719136,
+          14478368,
+          6719415
+        ],
+        "widthPixelsAtZoom12": 2.5
+      },
+      {
+        "index": 238,
+        "width": 38,
+        "bounds": [
+          14475815,
+          6720568,
+          14476052,
+          6721171
+        ],
+        "widthPixelsAtZoom12": 2.375
+      },
+      {
+        "index": 253,
+        "width": 38,
+        "bounds": [
+          14478018,
+          6730026,
+          14478400,
+          6730401
+        ],
+        "widthPixelsAtZoom12": 2.375
+      },
+      {
+        "index": 308,
+        "width": 38,
+        "bounds": [
+          14483830,
+          6720947,
+          14483986,
+          6721531
+        ],
+        "widthPixelsAtZoom12": 2.375
+      },
+      {
+        "index": 188,
+        "width": 36,
+        "bounds": [
+          14468898,
+          6720319,
+          14468977,
+          6720645
+        ],
+        "widthPixelsAtZoom12": 2.25
+      },
+      {
+        "index": 268,
+        "width": 35,
+        "bounds": [
+          14480116,
+          6719198,
+          14480361,
+          6719597
+        ],
+        "widthPixelsAtZoom12": 2.1875
+      },
+      {
+        "index": 286,
+        "width": 35,
+        "bounds": [
+          14481879,
+          6717913,
+          14481967,
+          6718361
+        ],
+        "widthPixelsAtZoom12": 2.1875
+      },
+      {
+        "index": 287,
+        "width": 33,
+        "bounds": [
+          14481906,
+          6721657,
+          14482372,
+          6722204
+        ],
+        "widthPixelsAtZoom12": 2.0625
+      },
+      {
+        "index": 217,
+        "width": 32,
+        "bounds": [
+          14473058,
+          6724431,
+          14473503,
+          6725261
+        ],
+        "widthPixelsAtZoom12": 2
+      },
+      {
+        "index": 199,
+        "width": 30,
+        "bounds": [
+          14470230,
+          6723184,
+          14471191,
+          6724266
+        ],
+        "widthPixelsAtZoom12": 1.875
+      },
+      {
+        "index": 195,
+        "width": 29,
+        "bounds": [
+          14469984,
+          6722062,
+          14471085,
+          6722617
+        ],
+        "widthPixelsAtZoom12": 1.8125
+      },
+      {
+        "index": 289,
+        "width": 28,
+        "bounds": [
+          14482247,
+          6720665,
+          14483217,
+          6721362
+        ],
+        "widthPixelsAtZoom12": 1.75
+      },
+      {
+        "index": 282,
+        "width": 26,
+        "bounds": [
+          14481481,
+          6724182,
+          14482063,
+          6725037
+        ],
+        "widthPixelsAtZoom12": 1.625
+      },
+      {
+        "index": 182,
+        "width": 25,
+        "bounds": [
+          14467989,
+          6729976,
+          14468156,
+          6730061
+        ],
+        "widthPixelsAtZoom12": 1.5625
+      },
+      {
+        "index": 299,
+        "width": 25,
+        "bounds": [
+          14483051,
+          6723973,
+          14483214,
+          6724692
+        ],
+        "widthPixelsAtZoom12": 1.5625
+      },
+      {
+        "index": 252,
+        "width": 23,
+        "bounds": [
+          14477947,
+          6730613,
+          14478024,
+          6730720
+        ],
+        "widthPixelsAtZoom12": 1.4375
+      },
+      {
+        "index": 305,
+        "width": 22,
+        "bounds": [
+          14483762,
+          6720652,
+          14483989,
+          6720742
+        ],
+        "widthPixelsAtZoom12": 1.375
+      },
+      {
+        "index": 318,
+        "width": 22,
+        "bounds": [
+          14484812,
+          6729132,
+          14484878,
+          6729868
+        ],
+        "widthPixelsAtZoom12": 1.375
+      },
+      {
+        "index": 264,
+        "width": 20,
+        "bounds": [
+          14479583,
+          6724079,
+          14479909,
+          6724921
+        ],
+        "widthPixelsAtZoom12": 1.25
+      },
+      {
+        "index": 198,
+        "width": 17,
+        "bounds": [
+          14470172,
+          6722449,
+          14470254,
+          6722774
+        ],
+        "widthPixelsAtZoom12": 1.0625
+      },
+      {
+        "index": 221,
+        "width": 16,
+        "bounds": [
+          14473682,
+          6725653,
+          14474268,
+          6726937
+        ],
+        "widthPixelsAtZoom12": 1
+      },
+      {
+        "index": 194,
+        "width": 15,
+        "bounds": [
+          14469852,
+          6723682,
+          14470149,
+          6723870
+        ],
+        "widthPixelsAtZoom12": 0.9375
+      },
+      {
+        "index": 203,
+        "width": 14,
+        "bounds": [
+          14470477,
+          6718971,
+          14470767,
+          6719676
+        ],
+        "widthPixelsAtZoom12": 0.875
+      },
+      {
+        "index": 251,
+        "width": 14,
+        "bounds": [
+          14477837,
+          6725202,
+          14478148,
+          6726205
+        ],
+        "widthPixelsAtZoom12": 0.875
+      },
+      {
+        "index": 210,
+        "width": 13,
+        "bounds": [
+          14471288,
+          6727983,
+          14471721,
+          6728328
+        ],
+        "widthPixelsAtZoom12": 0.8125
+      },
+      {
+        "index": 225,
+        "width": 13,
+        "bounds": [
+          14474308,
+          6721410,
+          14475184,
+          6721727
+        ],
+        "widthPixelsAtZoom12": 0.8125
+      },
+      {
+        "index": 326,
+        "width": 10,
+        "bounds": [
+          14485605,
+          6718861,
+          14485662,
+          6719120
+        ],
+        "widthPixelsAtZoom12": 0.625
+      },
+      {
+        "index": 215,
+        "width": 4,
+        "bounds": [
+          14472006,
+          6724418,
+          14473073,
+          6724644
+        ],
+        "widthPixelsAtZoom12": 0.25
+      },
+      {
+        "index": 185,
+        "width": 1,
+        "bounds": [
+          14468674,
+          6719764,
+          14469141,
+          6720150
+        ],
+        "widthPixelsAtZoom12": 0.0625
+      },
+      {
+        "index": 192,
+        "width": 1,
+        "bounds": [
+          14469484,
+          6726205,
+          14470438,
+          6726656
+        ],
+        "widthPixelsAtZoom12": 0.0625
+      },
+      {
+        "index": 316,
+        "width": 1,
+        "bounds": [
+          14484717,
+          6730618,
+          14485156,
+          6730921
+        ],
+        "widthPixelsAtZoom12": 0.0625
+      }
+    ]
+  },
+  "wide-mark": {
+    "center": [
+      33.3,
+      130.7
+    ],
+    "count": 20,
+    "min": 9,
+    "median": 39,
+    "max": 68,
+    "retainedAtThreshold8": 20,
+    "retainedAtThreshold64": 1,
+    "rings": [
+      {
+        "index": 263,
+        "width": 68,
+        "bounds": [
+          14479387,
+          6740794,
+          14481009,
+          6741039
+        ],
+        "widthPixelsAtZoom12": 4.25
+      },
+      {
+        "index": 277,
+        "width": 56,
+        "bounds": [
+          14480940,
+          6741473,
+          14481138,
+          6741885
+        ],
+        "widthPixelsAtZoom12": 3.5
+      },
+      {
+        "index": 236,
+        "width": 55,
+        "bounds": [
+          14475684,
+          6741668,
+          14475901,
+          6742030
+        ],
+        "widthPixelsAtZoom12": 3.4375
+      },
+      {
+        "index": 209,
+        "width": 51,
+        "bounds": [
+          14471116,
+          6743372,
+          14471951,
+          6743533
+        ],
+        "widthPixelsAtZoom12": 3.1875
+      },
+      {
+        "index": 226,
+        "width": 47,
+        "bounds": [
+          14474410,
+          6742253,
+          14475450,
+          6742908
+        ],
+        "widthPixelsAtZoom12": 2.9375
+      },
+      {
+        "index": 278,
+        "width": 42,
+        "bounds": [
+          14481154,
+          6737076,
+          14481681,
+          6737722
+        ],
+        "widthPixelsAtZoom12": 2.625
+      },
+      {
+        "index": 211,
+        "width": 40,
+        "bounds": [
+          14471539,
+          6747393,
+          14472236,
+          6747760
+        ],
+        "widthPixelsAtZoom12": 2.5
+      },
+      {
+        "index": 337,
+        "width": 40,
+        "bounds": [
+          14486769,
+          6743245,
+          14487308,
+          6743329
+        ],
+        "widthPixelsAtZoom12": 2.5
+      },
+      {
+        "index": 200,
+        "width": 39,
+        "bounds": [
+          14470449,
+          6744134,
+          14470636,
+          6744242
+        ],
+        "widthPixelsAtZoom12": 2.4375
+      },
+      {
+        "index": 274,
+        "width": 39,
+        "bounds": [
+          14480625,
+          6737531,
+          14480730,
+          6737769
+        ],
+        "widthPixelsAtZoom12": 2.4375
+      },
+      {
+        "index": 212,
+        "width": 37,
+        "bounds": [
+          14471549,
+          6746827,
+          14471629,
+          6747215
+        ],
+        "widthPixelsAtZoom12": 2.3125
+      },
+      {
+        "index": 242,
+        "width": 35,
+        "bounds": [
+          14476239,
+          6744518,
+          14476409,
+          6744624
+        ],
+        "widthPixelsAtZoom12": 2.1875
+      },
+      {
+        "index": 323,
+        "width": 34,
+        "bounds": [
+          14485433,
+          6743530,
+          14485667,
+          6743755
+        ],
+        "widthPixelsAtZoom12": 2.125
+      },
+      {
+        "index": 237,
+        "width": 32,
+        "bounds": [
+          14475731,
+          6735584,
+          14475961,
+          6735836
+        ],
+        "widthPixelsAtZoom12": 2
+      },
+      {
+        "index": 213,
+        "width": 29,
+        "bounds": [
+          14471836,
+          6738670,
+          14472179,
+          6738850
+        ],
+        "widthPixelsAtZoom12": 1.8125
+      },
+      {
+        "index": 230,
+        "width": 25,
+        "bounds": [
+          14475245,
+          6734503,
+          14475880,
+          6735462
+        ],
+        "widthPixelsAtZoom12": 1.5625
+      },
+      {
+        "index": 205,
+        "width": 24,
+        "bounds": [
+          14470874,
+          6743748,
+          14470973,
+          6744078
+        ],
+        "widthPixelsAtZoom12": 1.5
+      },
+      {
+        "index": 243,
+        "width": 20,
+        "bounds": [
+          14476331,
+          6744057,
+          14476411,
+          6744317
+        ],
+        "widthPixelsAtZoom12": 1.25
+      },
+      {
+        "index": 343,
+        "width": 12,
+        "bounds": [
+          14487319,
+          6736739,
+          14488330,
+          6736872
+        ],
+        "widthPixelsAtZoom12": 0.75
+      },
+      {
+        "index": 206,
+        "width": 9,
+        "bounds": [
+          14470991,
+          6744612,
+          14471544,
+          6745044
+        ],
+        "widthPixelsAtZoom12": 0.5625
+      }
+    ]
+  }
+}

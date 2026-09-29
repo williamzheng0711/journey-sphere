@@ -12,6 +12,9 @@ const dataDir = path.resolve(argument < 0 ? path.join(root, 'data') : process.ar
 const outputDir = path.join(dataDir, 'compiled');
 const extent = 2 ** 24;
 const read = async file => JSON.parse(await readFile(path.join(dataDir, file), 'utf8'));
+const readOptional = async file => {
+  try { return await read(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+};
 
 function project([longitude, latitude]) {
   if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) throw new Error('Invalid atlas coordinate.');
@@ -55,10 +58,50 @@ function exterior(feature) {
   } };
 }
 
+const OVERVIEW_TOLERANCE = 3000;
+const squaredDistance = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+function simplifyIndices(points, toleranceSquared) {
+  if (points.length <= 2) return points.map((_, index) => index);
+  let farthest = -1;
+  let distance = toleranceSquared;
+  const start = points[0]; const end = points.at(-1);
+  const dx = end[0] - start[0]; const dy = end[1] - start[1];
+  for (let index = 1; index < points.length - 1; index++) {
+    const point = points[index]; const length = dx * dx + dy * dy;
+    const t = length ? Math.max(0, Math.min(1, ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / length)) : 0;
+    const projection = [start[0] + t * dx, start[1] + t * dy];
+    const error = squaredDistance(point, projection);
+    if (error > distance) { farthest = index; distance = error; }
+  }
+  if (farthest < 0) return [0, points.length - 1];
+  const left = simplifyIndices(points.slice(0, farthest + 1), toleranceSquared);
+  const right = simplifyIndices(points.slice(farthest), toleranceSquared).map(index => index + farthest);
+  return [...left, ...right.slice(1)];
+}
+
+function simplifyRing(ring) {
+  if (ring.length <= 5) return ring;
+  const open = ring.slice(0, -1);
+  const projected = open.map(project);
+  const span = projected.reduce((result, point) => [Math.min(result[0], point[0]), Math.min(result[1], point[1]),
+    Math.max(result[2], point[0]), Math.max(result[3], point[1])], [Infinity, Infinity, -Infinity, -Infinity]);
+  if (Math.max(span[2] - span[0], span[3] - span[1]) <= OVERVIEW_TOLERANCE) return ring;
+  const indices = simplifyIndices([...projected, projected[0]], OVERVIEW_TOLERANCE ** 2).slice(0, -1);
+  const simplified = indices.map(index => open[index]);
+  return simplified.length >= 3 ? [...simplified, simplified[0]] : ring;
+}
+
+function simplifyWorld(feature) {
+  const geometry = feature.geometry;
+  const polygons = geometry?.type === 'Polygon' ? [geometry.coordinates] : geometry?.type === 'MultiPolygon' ? geometry.coordinates : [];
+  const coordinates = polygons.map(polygon => polygon.map(simplifyRing));
+  return { ...feature, geometry: geometry.type === 'Polygon' ? { ...geometry, coordinates: coordinates[0] } : { ...geometry, coordinates } };
+}
+
 // Normalize seams once, keeping only the center copy. The browser reuses its
 // native path at wrapped tile offsets, instead of cloning the coordinates.
 const normalize = features => featuresNearLongitudeCopies(features, 0).filter((_, index) => index % 3 === 0);
-const [catalog, palette, world] = await Promise.all([read('catalog.json'), read('palette.json'), read('world.geojson')]);
+const [catalog, palette, world, outlines] = await Promise.all([read('catalog.json'), read('palette.json'), read('world.geojson'), readOptional('outlines/manifest.json')]);
 const identity = describeCatalog(catalog);
 const indexById = new Map(catalog.regionIds.map((id, index) => [id, index]));
 const seen = new Set();
@@ -68,7 +111,7 @@ const write = (file, value) => writeFile(path.join(staging, file), `${JSON.strin
 let backup;
 try {
   await mkdir(path.join(staging, 'countries'));
-  const worldFeatures = normalize(world.features).map(feature => record(feature));
+  const worldFeatures = normalize(world.features).map(simplifyWorld).map(feature => record(feature));
   await write('world.json', envelope(worldFeatures));
   const countries = {};
   let nextIndex = 0;
@@ -94,7 +137,16 @@ try {
       color: palette[code]?.color || palette.countries?.[code]?.color || '#64748b' };
   }
   if (seen.size !== identity.regionCount) throw new Error('Source shards do not cover the complete catalog.');
-  const manifest = { format: 1, ...identity, extent, worldFile: 'world.json', catalogFile: '../catalog.json', countries };
+  let outlineMetadata;
+  if (outlines) {
+    if (outlines.format !== 1 || outlines.version !== identity.version || outlines.extent !== extent ||
+        JSON.stringify(outlines.fingerprint) !== JSON.stringify(identity.fingerprint) || typeof outlines.countries !== 'object') {
+      throw new Error('Detail outline manifest identity does not match the compiled atlas.');
+    }
+    outlineMetadata = outlines;
+  }
+  const manifest = { format: 1, ...identity, extent, worldFile: 'world.json', catalogFile: '../catalog.json', countries,
+    ...(outlineMetadata ? { outlines: outlineMetadata } : {}) };
   await write('manifest.json', manifest);
   await writeFile(path.join(staging, 'manifest.js'), `export default ${JSON.stringify(manifest)};\n`);
 

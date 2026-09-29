@@ -30,11 +30,12 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "check": "node --check src/index.js && node --check src/compiled.js && node --check src/compiled-layer.js && node --check src/geometry.js && node --check src/state.js && npm test",
+    "check": "node --check src/index.js && node --check src/compiled.js && node --check src/compiled-layer.js && node --check src/outline-detail.js && node --check src/geometry.js && node --check src/state.js && node --check scripts/build-detail-atlas.mjs && node --check scripts/build-compiled-atlas.mjs && npm test",
     "pack:check": "npm pack --dry-run",
     "validate:data": "node scripts/validate-atlas.mjs",
     "build:data": "node scripts/build-atlas.mjs && npm run build:compiled",
-    "build:compiled": "node scripts/build-compiled-atlas.mjs"
+    "build:compiled": "node scripts/build-compiled-atlas.mjs",
+    "build:outlines": "node scripts/build-detail-atlas.mjs"
   },
   "engines": {
     "node": ">=20"

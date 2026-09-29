@@ -1,0 +1,355 @@
+{
+  "baselineCommit": "65d417c1739243e9f04ce5644e63fa463c09958b",
+  "scenarios": [
+    {
+      "name": "east-asia",
+      "center": [
+        22.3,
+        114.15
+      ]
+    },
+    {
+      "name": "europe",
+      "center": [
+        50,
+        10
+      ]
+    },
+    {
+      "name": "pacific",
+      "center": [
+        -25,
+        175
+      ]
+    }
+  ],
+  "settings": "Zoom 4, 1200x800 DPR1; HKG visit retained in all views, same compiled renderer entry point",
+  "network": {
+    "latencyMs": 150,
+    "bitsPerSecond": 1600000,
+    "gzip": true,
+    "coldCache": true
+  },
+  "samples": 5,
+  "worldGzipBytes": {
+    "baseline": 423141,
+    "current": 376984
+  },
+  "summary": {
+    "baseline": {
+      "firstDisplayMs": 3306.5999999940395,
+      "transferBytes": 488054
+    },
+    "current": {
+      "firstDisplayMs": 3152.5,
+      "transferBytes": 455119
+    }
+  },
+  "byScenario": {
+    "east-asia": {
+      "baseline": {
+        "firstDisplayMs": 3299,
+        "transferBytes": 488054
+      },
+      "current": {
+        "firstDisplayMs": 3159.199999988079,
+        "transferBytes": 455119
+      }
+    },
+    "europe": {
+      "baseline": {
+        "firstDisplayMs": 3315.7000000178814,
+        "transferBytes": 488054
+      },
+      "current": {
+        "firstDisplayMs": 3148.0999999940395,
+        "transferBytes": 455119
+      }
+    },
+    "pacific": {
+      "baseline": {
+        "firstDisplayMs": 3303.5999999940395,
+        "transferBytes": 488054
+      },
+      "current": {
+        "firstDisplayMs": 3137.4000000059605,
+        "transferBytes": 455119
+      }
+    }
+  },
+  "records": [
+    {
+      "variant": "baseline",
+      "sample": 1,
+      "scenario": "east-asia",
+      "firstDisplayMs": 3325.2000000178814,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0,
+      "zoomDetailMs": 26.5
+    },
+    {
+      "variant": "current",
+      "sample": 1,
+      "scenario": "east-asia",
+      "firstDisplayMs": 3157.5,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0,
+      "zoomDetailMs": 1706.800000011921
+    },
+    {
+      "variant": "current",
+      "sample": 2,
+      "scenario": "east-asia",
+      "firstDisplayMs": 3163.199999988079,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 2,
+      "scenario": "east-asia",
+      "firstDisplayMs": 3299,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 3,
+      "scenario": "east-asia",
+      "firstDisplayMs": 3318.199999988079,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 3,
+      "scenario": "east-asia",
+      "firstDisplayMs": 3168.600000023842,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 4,
+      "scenario": "east-asia",
+      "firstDisplayMs": 3152.5,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 4,
+      "scenario": "east-asia",
+      "firstDisplayMs": 3287.5999999940395,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 5,
+      "scenario": "east-asia",
+      "firstDisplayMs": 3273.199999988079,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 5,
+      "scenario": "east-asia",
+      "firstDisplayMs": 3159.199999988079,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 1,
+      "scenario": "europe",
+      "firstDisplayMs": 3320.5,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 1,
+      "scenario": "europe",
+      "firstDisplayMs": 3159.4000000059605,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 2,
+      "scenario": "europe",
+      "firstDisplayMs": 3148.0999999940395,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 2,
+      "scenario": "europe",
+      "firstDisplayMs": 3285.5999999940395,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 3,
+      "scenario": "europe",
+      "firstDisplayMs": 3315.7000000178814,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 3,
+      "scenario": "europe",
+      "firstDisplayMs": 3142.2999999821186,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 4,
+      "scenario": "europe",
+      "firstDisplayMs": 3156.2999999821186,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 4,
+      "scenario": "europe",
+      "firstDisplayMs": 3306.5999999940395,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 5,
+      "scenario": "europe",
+      "firstDisplayMs": 3321.7999999821186,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 5,
+      "scenario": "europe",
+      "firstDisplayMs": 3128.5,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 1,
+      "scenario": "pacific",
+      "firstDisplayMs": 3301.4000000059605,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 1,
+      "scenario": "pacific",
+      "firstDisplayMs": 3143.7999999821186,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 2,
+      "scenario": "pacific",
+      "firstDisplayMs": 3134.7999999821186,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 2,
+      "scenario": "pacific",
+      "firstDisplayMs": 3302.9000000059605,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 3,
+      "scenario": "pacific",
+      "firstDisplayMs": 3329.5,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 3,
+      "scenario": "pacific",
+      "firstDisplayMs": 3135.2000000178814,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 4,
+      "scenario": "pacific",
+      "firstDisplayMs": 3137.4000000059605,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 4,
+      "scenario": "pacific",
+      "firstDisplayMs": 3307.5,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "baseline",
+      "sample": 5,
+      "scenario": "pacific",
+      "firstDisplayMs": 3303.5999999940395,
+      "transferBytes": 488054,
+      "encodedBytes": 485354,
+      "detailRequestsBeforeDisplay": 0
+    },
+    {
+      "variant": "current",
+      "sample": 5,
+      "scenario": "pacific",
+      "firstDisplayMs": 3173.300000011921,
+      "transferBytes": 455119,
+      "encodedBytes": 452419,
+      "detailRequestsBeforeDisplay": 0
+    }
+  ],
+  "pass": true
+}

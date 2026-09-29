@@ -32,6 +32,10 @@ test('static export preserves exact selected geometry, canonical runtime and rep
     const deployed = JSON.parse(await readFile(join(outputDir, 'data/compiled/manifest.json')));
     assert.equal(deployed.countries.CHN.file, manifest.countries.CHN.file);
     assert.equal(deployed.countries.USA.file, 'https://example.org/release/data/compiled/countries/USA.json');
+    assert.deepEqual(await readFile(join(outputDir, 'src/outline-detail.js')), await readFile(new URL('../src/outline-detail.js', import.meta.url)));
+    assert.ok(first.files['data/outlines/HKG.json']);
+    assert.ok(first.files['data/outlines/sources.json']);
+    assert.deepEqual(deployed.outlines, manifest.outlines);
     for (const [file, hash] of Object.entries(first.files)) {
       assert.equal(createHash('sha256').update(await readFile(join(outputDir, file))).digest('hex'), hash);
     }
@@ -60,6 +64,9 @@ test('default export supports empty visits and serves every country locally', as
     assert.deepEqual(JSON.parse(await readFile(join(outputDir, 'data/startup.json'))).countries, {});
     for (const entry of Object.values(manifest.countries)) {
       if (entry.file) assert.ok(result.files[`data/compiled/${entry.file}`]);
+    }
+    for (const code of Object.keys(manifest.outlines.countries)) {
+      assert.ok(result.files[`data/outlines/${code}.json`]);
     }
   } finally { await rm(temp, { recursive: true, force: true }); }
 });

@@ -1,0 +1,8 @@
+{
+  "expectedFailureObserved": true,
+  "fixture": "width-only prototype without provenance eligibility",
+  "probe": "Japan wide-mark, zoom 9",
+  "actualDarkPixels": 18,
+  "expectedDarkPixels": 0,
+  "assertion": "unsupported seam has no dark stroke at zoom 9"
+}

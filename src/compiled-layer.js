@@ -9,7 +9,7 @@ export function createCompiledLayer(L, options) {
   if (!L?.GridLayer?.extend) throw new TypeError('JourneySphere compiled renderer requires Leaflet GridLayer.');
   const {
     world, extent, getCountries, getVisited, colorFor, fillOpacity = 0.44,
-    labels, interactive = true, onToggle, onError,
+    labels, interactive = true, onToggle, onError, getOutline = () => null, outlineRegionIds = [],
   } = options || {};
   if (!world || !Array.isArray(world.features)) throw new TypeError('Compiled renderer requires world features.');
   if (!Number.isFinite(extent) || extent <= 0) throw new RangeError('Compiled renderer extent must be positive.');
@@ -18,7 +18,33 @@ export function createCompiledLayer(L, options) {
   }
 
   let paths = new WeakMap();
-  const pathFor = record => {
+  let strokePaths = new WeakMap();
+  let replacements = new WeakMap();
+  const replaceable = new Set(outlineRegionIds);
+  const detailedRecord = (record, zoom) => {
+    const outline = getOutline(record.countryCode, zoom);
+    if (!outline) return record;
+    let records = replacements.get(outline);
+    if (!records) replacements.set(outline, records = new WeakMap());
+    if (!records.has(record)) records.set(record, { ...record, d: outline.d, bounds: outline.bounds, strokeWidths: outline.strokeWidths });
+    return records.get(record);
+  };
+  const pathFor = (record, stroke = false, zoom = 0) => {
+    if (stroke && record.strokeWidths) {
+      let cached = strokePaths.get(record);
+      if (!cached) {
+        cached = { rings: record.d.match(/M[^M]+/g), zooms: new Map() };
+        strokePaths.set(record, cached);
+      }
+      if (!cached.zooms.has(zoom)) {
+        // Keep the exact fill; outline only supported holes wide enough to resolve.
+        const minimumWidth = 0.5 * extent / (256 * 2 ** zoom);
+        const rings = cached.rings.filter((_, index) => record.strokeWidths[index] === null ||
+          record.strokeWidths[index] >= minimumWidth);
+        cached.zooms.set(zoom, new Path2D(rings.join(' ')));
+      }
+      return cached.zooms.get(zoom);
+    }
     if (!paths.has(record)) paths.set(record, new Path2D(record.d));
     return paths.get(record);
   };
@@ -45,7 +71,7 @@ export function createCompiledLayer(L, options) {
     return context;
   }
 
-  function tileShifts(record, coords, zoom) {
+  function tileShifts(record, coords, zoom, padding) {
     if (!record.bounds) return WORLD_SHIFT_OFFSETS;
     const worldWidth = extent / (2 ** zoom);
     const left = coords.x * worldWidth;
@@ -54,50 +80,59 @@ export function createCompiledLayer(L, options) {
     return WORLD_SHIFT_OFFSETS.filter(shift => {
       const shiftedMin = minX + shift * extent;
       const shiftedMax = maxX + shift * extent;
-      return shiftedMax >= left && shiftedMin <= right && maxY >= coords.y * worldWidth && minY <= (coords.y + 1) * worldWidth;
+      return shiftedMax + padding >= left && shiftedMin - padding <= right &&
+        maxY + padding >= coords.y * worldWidth && minY - padding <= (coords.y + 1) * worldWidth;
     });
   }
 
   function drawRecord(context, record, coords, zoom, size, ratio, style) {
     const scale = (2 ** zoom) * size.x / extent;
-    const shifts = tileShifts(record, coords, zoom);
+    const shifts = tileShifts(record, coords, zoom, style.stroke === false ? 0 : style.weight / (2 * scale));
     if (!shifts.length) return;
-    const path = pathFor(record);
     for (const shift of shifts) {
       context.save();
       context.setTransform(scale * ratio, 0, 0, scale * ratio,
         -coords.x * size.x * ratio, -coords.y * size.y * ratio);
       context.translate(shift * extent, 0);
-      context.lineWidth = style.weight / scale;
-      context.lineCap = 'round';
-      context.lineJoin = 'round';
-      context.strokeStyle = style.color;
-      context.globalAlpha = style.opacity ?? 1;
       if (style.fill) {
         context.fillStyle = style.fill;
         context.globalAlpha = style.fillOpacity;
-        context.fill(path, 'evenodd');
+        context.fill(pathFor(record), 'evenodd');
       }
       if (style.stroke !== false) {
+        context.lineWidth = style.weight / scale;
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        context.strokeStyle = style.color;
         context.globalAlpha = style.opacity ?? 1;
-        context.stroke(path);
+        context.stroke(pathFor(record, true, zoom));
       }
       context.restore();
     }
   }
 
-  function scene() {
+  function scene(zoom) {
     const visited = visitedSet();
     const activeCountries = countrySet(visited);
-    const activeRecords = recordsForCountries();
+    const baseRecords = recordsForCountries();
+    const replacementParents = new Set(baseRecords.filter(record => replaceable.has(record.id)).map(parentKey));
+    const activeRecords = baseRecords.map(record => replaceable.has(record.id) ? detailedRecord(record, zoom) : record);
     const recordsById = new Map(activeRecords.map(record => [record.id, record]));
     const activeParents = new Set([...visited].map(id => recordsById.get(id)).filter(Boolean).map(parentKey));
     const selected = record => visited.has(record.id);
     const sibling = record => activeParents.has(parentKey(record)) && !selected(record);
-    return { visited, activeCountries, activeParents, activeRecords, adminRecords: admin1ForCountries(), selected, sibling };
+    return { zoom, visited, activeCountries, activeParents, activeRecords, selected,
+      worldRecords: world.features.map(record => getOutline(record.countryCode, zoom) || record),
+      adminRecords: admin1ForCountries().map(record => replacementParents.has(parentKey(record)) ? detailedRecord(record, zoom) : record),
+      visibleRegions: activeRecords.filter(record => activeCountries.has(record.countryCode) && (selected(record) || sibling(record))),
+    };
   }
 
   const Layer = L.GridLayer.extend({
+    _sceneAt(zoom) {
+      if (!this._compiledScene || this._compiledScene.zoom !== zoom) this._compiledScene = scene(zoom);
+      return this._compiledScene;
+    },
     createTile(coords) {
       let tile;
       try {
@@ -110,14 +145,27 @@ export function createCompiledLayer(L, options) {
         tile.style.width = `${size.x}px`;
         tile.style.height = `${size.y}px`;
         const context = tileContext(tile);
-        const state = this._compiledScene || (this._compiledScene = scene());
-        const countryRecords = state.activeRecords;
+        const zoom = this._compiledMap?.getZoom() ?? this._map?.getZoom() ?? coords.z;
+        const state = this._sceneAt(zoom);
+        const countryRecords = state.visibleRegions;
         const adminRecords = state.adminRecords;
         const activeWorld = feature => state.activeCountries.has(feature.countryCode);
-        for (const feature of world.features) {
+        // Neighboring fills must finish before shared boundary strokes.
+        for (const feature of state.worldRecords) {
           drawRecord(context, feature, coords, coords.z, size, ratio, {
-            color: activeWorld(feature) ? '#8795a6' : '#c1cbd5', weight: activeWorld(feature) ? 0.8 : 0.45,
-            fill: '#f8fafc', fillOpacity: 0.84,
+            fill: '#f8fafc', fillOpacity: 0.84, stroke: false,
+          });
+        }
+        for (const feature of state.worldRecords) {
+          drawRecord(context, feature, coords, coords.z, size, ratio, {
+            color: activeWorld(feature) ? '#8795a6' : zoom >= 6 ? '#acb8c5' : '#c1cbd5',
+            weight: activeWorld(feature) ? (zoom >= 6 ? 0.95 : 0.8) : (zoom >= 6 ? 0.65 : 0.45),
+          });
+        }
+        for (const feature of countryRecords) {
+          if (!state.selected(feature)) continue;
+          drawRecord(context, feature, coords, coords.z, size, ratio, {
+            fill: colorFor?.(feature.countryCode) || '#64748b', fillOpacity, stroke: false,
           });
         }
         for (const feature of adminRecords) {
@@ -128,14 +176,11 @@ export function createCompiledLayer(L, options) {
           });
         }
         for (const feature of countryRecords) {
-          if (!state.activeCountries.has(feature.countryCode) || (!state.selected(feature) && !state.sibling(feature))) continue;
           const isSelected = state.selected(feature);
           drawRecord(context, feature, coords, coords.z, size, ratio, {
             color: isSelected ? colorFor?.(feature.countryCode) || '#64748b' : '#9aa8b7',
-            weight: isSelected ? 1.05 : 0.55,
+            weight: isSelected ? (zoom >= 6 ? 1.15 : 1.05) : 0.55,
             opacity: isSelected ? 0.88 : 0.65,
-            fill: isSelected ? colorFor?.(feature.countryCode) || '#64748b' : undefined,
-            fillOpacity: isSelected ? fillOpacity : 0,
           });
         }
       } catch (error) {
@@ -147,7 +192,7 @@ export function createCompiledLayer(L, options) {
     onAdd(map) {
       L.GridLayer.prototype.onAdd.call(this, map);
       this._compiledMap = map;
-      this._compiledScene = scene();
+      this._compiledScene = scene(map.getZoom());
       map.on('mousemove', this._compiledHover, this);
       map.on('mouseout', this._clearCompiledHover, this);
       map.on('movestart', this._clearCompiledHover, this);
@@ -167,6 +212,8 @@ export function createCompiledLayer(L, options) {
       this._compiledTooltip = null;
       this._compiledLabel = null;
       paths = new WeakMap();
+      strokePaths = new WeakMap();
+      replacements = new WeakMap();
       L.GridLayer.prototype.onRemove.call(this, map);
     },
     _clearCompiledHover() {
@@ -180,7 +227,7 @@ export function createCompiledLayer(L, options) {
       const y = point.y * extent / 256;
       const canvas = this._compiledHitCanvas || (this._compiledHitCanvas = document.createElement('canvas'));
       const context = this._compiledHitContext || (this._compiledHitContext = tileContext(canvas));
-      const records = (this._compiledScene || (this._compiledScene = scene())).activeRecords;
+      const records = this._sceneAt(map.getZoom()).activeRecords;
       for (const record of records) {
         if (!record.bounds) continue;
         const [minX, minY, maxX, maxY] = record.bounds;
@@ -211,7 +258,7 @@ export function createCompiledLayer(L, options) {
     },
     refresh() {
       this._clearCompiledHover();
-      this._compiledScene = scene();
+      this._compiledScene = null;
       this.redraw();
     },
   });

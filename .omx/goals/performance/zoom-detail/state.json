@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "workflow": "performance-goal",
+  "slug": "zoom-detail",
+  "objective": "我覺得這個方向還可以多向前走幾步：\n\n我的品味，先和你說一下：\n\n- 现在这种显示的样子我还是挺满意的，加載起來的速度已經是滿意的水平。\n- 希望把这个地图的边界画得更加清楚一点的话就更好了。\n- 可以考慮（只是作為一種建議）讓地圖在沒放大的時候模糊，但是放大的時候儘量還是清楚一點，現在放大了之後有點沒眼看。\n- 加載速度還是可以再快一點。\n\nReferenced image files:\n- [Image #1]: /Users/williamzheng/.codex/attachments/fe8c6ba3-b17f-4cf0-a8c9-39bd5a33105b/image-1.png",
+  "status": "complete",
+  "createdAt": "2026-09-29T05:12:17.551Z",
+  "updatedAt": "2026-09-29T06:21:57.321Z",
+  "evaluator": {
+    "command": "npm run check && npm run validate:data && node scripts/test-map-progressive.mjs && node scripts/test-map-detail.mjs && node scripts/benchmark-zoom.mjs",
+    "contract": "PASS only when current real-browser screenshot/geometry evidence at overview and zoom 7-12 resolves the reference image coarse-coast/triangle problem with genuinely finer underlying boundaries; preserves layout/palette/visited IDs and codewords; higher-detail data is requested only as needed by the viewport after first display; cold first-display median and transfer at 1.6Mbps/150ms across five alternating baseline/current samples improve over current HEAD65d417c1; detailed-view render remains responsive; desktop/mobile DPR1/2 zoom/pan/wrap/click/hover/reset/destroy and stale/aborted/failed/retry detail loading verified; static export includes needed detail assets; all regression and data checks pass."
+  },
+  "artifactPaths": {
+    "state": ".omx/goals/performance/zoom-detail/state.json",
+    "ledger": ".omx/goals/performance/zoom-detail/ledger.jsonl",
+    "evaluator": ".omx/goals/performance/zoom-detail/evaluator.md"
+  },
+  "startedAt": "2026-09-29T05:12:17.751Z",
+  "lastValidation": {
+    "status": "pass",
+    "evidence": "All259 atlas entries refined;85 automated tests, atlas/progressive/browser18cases and package checks passed. Cold-cache medians improve4.2-5.1% across East Asia,Europe,Pacific with6.7% less startup transfer. Evidence:outputs/zoom-detail/benchmark.json,outputs/zoom-detail/detail-test.json,docs/zoom-detail.md and completion-audit.md.",
+    "recordedAt": "2026-09-29T06:21:04.213Z"
+  },
+  "completedAt": "2026-09-29T06:21:57.321Z"
+}

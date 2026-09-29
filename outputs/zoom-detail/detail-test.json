@@ -1,0 +1,269 @@
+{
+  "ok": true,
+  "baseline": "65d417c1",
+  "checks": [
+    {
+      "case": "desktop fine-only coast, first paint, hover, click and codeword",
+      "point": {
+        "x": 628,
+        "y": 413,
+        "lat": 22.266222283797777,
+        "lng": 114.22760009765626,
+        "fine": true,
+        "coarse": false
+      },
+      "pixel": [
+        [
+          128,
+          130,
+          202,
+          232
+        ]
+      ],
+      "firstPaintMs": 97.80000001192093,
+      "firstDetailMs": 104.60000002384186
+    },
+    {
+      "case": "two world wraps at zoom 9",
+      "point": {
+        "x": 601,
+        "y": 401,
+        "lat": 22.263680482353227,
+        "lng": 834.2303466796876,
+        "fine": true,
+        "coarse": false
+      }
+    },
+    {
+      "case": "two world wraps at zoom 12",
+      "point": {
+        "x": 751,
+        "y": 263,
+        "lat": 22.309743464951154,
+        "lng": 834.2794418334962,
+        "fine": true,
+        "coarse": false
+      }
+    },
+    {
+      "case": "zoom-out coarse fallback, reset, and destroy"
+    },
+    {
+      "case": "cold overview has zero detailed requests"
+    },
+    {
+      "case": "DPR2 mobile real touch and two world wraps at zoom 12",
+      "point": {
+        "x": 223,
+        "y": 434,
+        "lat": 22.26876403907398,
+        "lng": 114.22760009765626,
+        "fine": true,
+        "coarse": false
+      },
+      "wrappedPoint": {
+        "x": 55,
+        "y": 323,
+        "lat": 22.30021443817393,
+        "lng": 834.1795349121095,
+        "fine": true,
+        "coarse": false
+      }
+    },
+    {
+      "case": "held HKG remains interactive; destroy settles and aborts; fresh map loads detail"
+    },
+    {
+      "case": "held deferred module settles public detail promise on destroy within one second"
+    },
+    {
+      "case": "targeted HKG 503 is reported; explicit retry rejects then recovers",
+      "attempts": 3,
+      "observedErrors": [
+        {
+          "name": "Error",
+          "message": "JourneySphere: 503 loading outline HKG"
+        }
+      ]
+    },
+    {
+      "case": "unsupported seam seam-area",
+      "zoom": 9,
+      "pixels": {
+        "dark": 0,
+        "count": 81,
+        "point": {
+          "x": 673,
+          "y": 380
+        }
+      }
+    },
+    {
+      "case": "unsupported seam wide-mark",
+      "zoom": 9,
+      "pixels": {
+        "dark": 0,
+        "count": 81,
+        "point": {
+          "x": 604,
+          "y": 399
+        }
+      }
+    },
+    {
+      "case": "unsupported seam seam-area",
+      "zoom": 12,
+      "pixels": {
+        "dark": 0,
+        "count": 81,
+        "point": {
+          "x": 1182,
+          "y": 237
+        }
+      }
+    },
+    {
+      "case": "unsupported seam wide-mark",
+      "zoom": 12,
+      "pixels": {
+        "dark": 0,
+        "count": 81,
+        "point": {
+          "x": 627,
+          "y": 387
+        }
+      }
+    },
+    {
+      "case": "global japan-islands",
+      "zoom": 9,
+      "selectedId": "JPN:ADM2:22064153B46179239075141",
+      "label": "Sasebo",
+      "point": {
+        "x": 613,
+        "y": 319,
+        "lat": 33.32593850874474,
+        "lng": 129.63592529296878
+      },
+      "worldVertices": {
+        "coarse": 800,
+        "fine": 34649
+      },
+      "requestedCodes": [
+        "KOR",
+        "JPN",
+        "CHN"
+      ],
+      "administrativeGeometry": "unchanged canonical ADM2",
+      "palette": "identical painted interior",
+      "codewordPreserved": true
+    },
+    {
+      "case": "global norway-fjords",
+      "zoom": 9,
+      "selectedId": "NOR:ADM2:86288312B18429617226236",
+      "label": "Bergen nor",
+      "point": {
+        "x": 622,
+        "y": 313,
+        "lat": 60.518102620094275,
+        "lng": 5.309143066406251
+      },
+      "worldVertices": {
+        "coarse": 1924,
+        "fine": 45052
+      },
+      "requestedCodes": [
+        "NOR"
+      ],
+      "administrativeGeometry": "unchanged canonical ADM2",
+      "palette": "identical painted interior",
+      "codewordPreserved": true
+    },
+    {
+      "case": "global germany-france-border",
+      "zoom": 12,
+      "selectedId": "DEU:ADM2:24449704B45383119464661",
+      "label": "Regionalverband Saarbrücken",
+      "point": {
+        "x": 229,
+        "y": 85,
+        "lat": 49.27071680843916,
+        "lng": 6.822509765625001
+      },
+      "worldVertices": {
+        "coarse": 289,
+        "fine": 9544
+      },
+      "requestedCodes": [
+        "DEU",
+        "FRA"
+      ],
+      "administrativeGeometry": "unchanged canonical ADM2",
+      "palette": "identical painted interior",
+      "codewordPreserved": true
+    },
+    {
+      "case": "global alaska",
+      "zoom": 7,
+      "selectedId": "USA:ADM2:52423323B58185108898",
+      "label": "Anchorage",
+      "point": {
+        "x": 640,
+        "y": 343,
+        "lat": 61.44927080076419,
+        "lng": -149.35913085937503
+      },
+      "worldVertices": {
+        "coarse": 3712,
+        "fine": 50062
+      },
+      "requestedCodes": [
+        "USA"
+      ],
+      "administrativeGeometry": "unchanged canonical ADM2",
+      "palette": "identical painted interior",
+      "codewordPreserved": true
+    },
+    {
+      "case": "global aleutian-dateline",
+      "zoom": 9,
+      "selectedId": "USA:ADM2:52423323B14067598441828",
+      "label": "Aleutians West",
+      "point": {
+        "x": 610,
+        "y": 628,
+        "lat": 52.0170077907722,
+        "lng": 179.62646484375003
+      },
+      "worldVertices": {
+        "coarse": 3712,
+        "fine": 50062
+      },
+      "requestedCodes": [
+        "RUS",
+        "USA"
+      ],
+      "administrativeGeometry": "unchanged canonical ADM2",
+      "palette": "identical painted interior",
+      "codewordPreserved": true
+    }
+  ],
+  "screenshots": [
+    "desktop-zoom9-dpr1.png",
+    "desktop-zoom12-dpr1.png",
+    "mobile-zoom9-dpr2.png",
+    "mobile-zoom12-dpr2.png",
+    "japan-islands-coarse.png",
+    "japan-islands-fine.png",
+    "japan-seam-area-zoom9.png",
+    "japan-wide-mark-zoom9.png",
+    "japan-seam-area-zoom12.png",
+    "japan-wide-mark-zoom12.png",
+    "norway-fjords-coarse.png",
+    "norway-fjords-fine.png",
+    "aleutian-dateline-coarse.png",
+    "aleutian-dateline-fine.png"
+  ],
+  "pageErrors": []
+}

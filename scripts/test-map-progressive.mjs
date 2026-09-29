@@ -108,7 +108,10 @@ try {
   await waitFor(page, () => document.querySelectorAll('.leaflet-container canvas').length > 0);
   assert.deepEqual(await page.evaluate(() => window.journeySphere.getVisited()), visited);
   const originalWord = await page.evaluate(() => window.journeySphere.getCodeword());
-  await page.waitForTimeout(100);
+  // Background work starts after two animation frames; CPU contention or a
+  // hidden browser tab can delay those frames beyond a fixed 100 ms sleep.
+  const requestDeadline = Date.now() + 10_000;
+  while (!first.requests.length && Date.now() < requestDeadline) await page.waitForTimeout(25);
   assert.ok(first.requests.length > 0, 'full country details should be pending');
   console.log('Bootstrap ready while country details are held');
 

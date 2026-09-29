@@ -2,13 +2,13 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs, isDeepStrictEqual } from 'node:util';
 
 const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
 const digest = value => createHash('sha256').update(value).digest('hex');
-const sourceFiles = ['src/compiled.js', 'src/compiled-layer.js', 'src/state.js', 'src/style.css', 'LICENSE', 'README.md', 'data/README.md'];
+const sourceFiles = ['src/compiled.js', 'src/compiled-layer.js', 'src/outline-detail.js', 'src/state.js', 'src/style.css', 'LICENSE', 'README.md', 'data/README.md'];
 
 /** Build a static deployment from canonical map sources and a consumer's visits. */
 export async function exportStatic({ recordPath, outputDir, fallbackDataUrl }) {
@@ -62,6 +62,17 @@ export async function exportStatic({ recordPath, outputDir, fallbackDataUrl }) {
     if (!entry.file || codes.includes(code)) continue;
     if (fallback) entry.file = new URL(`compiled/${entry.file}`, fallback).href;
     else await include(`data/compiled/${entry.file}`);
+  }
+  // Outlines follow the viewport, including countries with no selected regions.
+  // Keep their manifest and attribution local even with a remote country fallback.
+  if (manifest.outlines) {
+    await include('data/outlines/manifest.json');
+    await include('data/outlines/sources.json');
+    for (const entry of Object.values(manifest.outlines.countries)) {
+      const file = relative(sourceRoot, resolve(sourceRoot, 'data/compiled/', entry.file));
+      if (!file.startsWith('data/outlines/')) throw new Error('Outline export paths must stay inside data/outlines/.');
+      await include(file);
+    }
   }
   sourceHashes['data/compiled/manifest.json'] = digest(await read('data/compiled/manifest.json'));
   sourceHashes['scripts/export-static.mjs'] = digest(await read('scripts/export-static.mjs'));

@@ -83,6 +83,19 @@ test('manifest validation rejects malformed identity, paths, and country ranges 
   for (const candidate of invalid) assert.throws(() => loadCompiledAtlas('/fixture/', { manifest: candidate }), /unsupported compiled atlas|invalid compiled country ranges/i);
 });
 
+test('rejects invalid outline metadata before loading the atlas', () => {
+  const entry = { file: '../outlines/AAA.json', bounds: [0, 0, 10, 10], regionIds: ['AAA:ADM0:AAA'] };
+  for (const outlines of [null, { minZoom: 6, countries: [] },
+    { minZoom: -1, countries: {} },
+    ...[null, { ...entry, bounds: [10, 0, 0, 10] }, { ...entry, file: '' },
+      { ...entry, parts: [] }, { ...entry, parts: [[0, 0, -1, 1]] },
+      { ...entry, regionIds: ['BBB:ADM0:BBB'] }, { ...entry, regionIds: ['AAA:ADM2:region'] }]
+      .map(value => ({ minZoom: 6, countries: { AAA: value } })),
+  ]) {
+    assert.throws(() => loadCompiledAtlas('/fixture/', { manifest: { ...manifest, outlines } }), /invalid detailed outline manifest/);
+  }
+});
+
 test('factory gives codeword precedence over visited IDs and reset emits callbacks', async () => {
   await withCompiledDom(async ({ leaflet }) => {
     const changes = [];
@@ -227,7 +240,8 @@ function makeMap() {
     addLayer(layer) { layer.onAdd?.(map); return map; },
     removeLayer(layer) { layer.onRemove?.(map); return map; },
     remove() { for (const layer of [...map.layers || []]) layer.onRemove?.(map); map.removed = true; },
-    setView() { return map; }, invalidateSize() {}, setMinZoom() {}, getCenter: () => ({ lat: 0, lng: 0 }),
+    setView(_center, zoom) { map.zoom = zoom; return map; }, getZoom: () => map.zoom ?? 4,
+    invalidateSize() {}, setMinZoom() {}, getCenter: () => ({ lat: 0, lng: 0 }),
     getPixelWorldBounds: () => ({ min: { y: 0 }, max: { y: 256 } }), getSize: () => ({ y: 256 }),
     project: () => ({ x: 128, y: 128 }), unproject: value => value,
   };

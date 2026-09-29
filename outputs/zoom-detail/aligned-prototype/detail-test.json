@@ -1,0 +1,144 @@
+{
+  "ok": true,
+  "baseline": "65d417c1",
+  "checks": [
+    {
+      "coastDisplacement": {
+        "method": "canonical union side classification; edge endpoints and midpoints to detailed outline segments",
+        "coastalSegments": 295,
+        "samples": 759,
+        "worst": {
+          "x": 14438187,
+          "y": 6753964,
+          "edge": [
+            14438187,
+            6753964,
+            14437804,
+            6753696
+          ],
+          "t": 0,
+          "distance": 0.914047339506075,
+          "latlng": {
+            "lat": 33.0700381609192,
+            "lng": 129.80988264083865
+          }
+        },
+        "maxProjectedUnits": 0.914047339506075,
+        "maxPixelsAtZoom12": 0.057127958719129686
+      },
+      "case": "global japan-islands",
+      "zoom": 9,
+      "selectedId": "JPN:ADM2:22064153B46179239075141",
+      "label": "Sasebo",
+      "point": {
+        "x": 613,
+        "y": 319,
+        "lat": 33.32593850874474,
+        "lng": 129.63592529296878
+      },
+      "worldVertices": {
+        "coarse": 800,
+        "fine": 34592
+      },
+      "requestedCodes": [
+        "JPN",
+        "CHN"
+      ],
+      "administrativeGeometry": "unchanged canonical ADM2",
+      "palette": "identical painted interior",
+      "codewordPreserved": true
+    },
+    {
+      "coastDisplacement": {
+        "method": "canonical union side classification; edge endpoints and midpoints to detailed outline segments",
+        "coastalSegments": 263,
+        "samples": 564,
+        "worst": null,
+        "maxProjectedUnits": 0,
+        "maxPixelsAtZoom12": 0
+      },
+      "case": "global norway-fjords",
+      "zoom": 9,
+      "selectedId": "NOR:ADM2:86288312B18429617226236",
+      "label": "Bergen nor",
+      "point": {
+        "x": 622,
+        "y": 313,
+        "lat": 60.518102620094275,
+        "lng": 5.309143066406251
+      },
+      "worldVertices": {
+        "coarse": 1924,
+        "fine": 42019
+      },
+      "requestedCodes": [
+        "NOR"
+      ],
+      "administrativeGeometry": "unchanged canonical ADM2",
+      "palette": "identical painted interior",
+      "codewordPreserved": true
+    },
+    {
+      "coastDisplacement": {
+        "method": "canonical union side classification; edge endpoints and midpoints to detailed outline segments",
+        "coastalSegments": 2424,
+        "samples": 6885,
+        "worst": {
+          "x": 172773,
+          "y": 5561305,
+          "edge": [
+            172774,
+            5561305,
+            172773,
+            5561305
+          ],
+          "t": 1,
+          "distance": 1.1102230246251565e-16,
+          "latlng": {
+            "lat": 51.741154356808,
+            "lng": -176.29269361495975
+          }
+        },
+        "maxProjectedUnits": 1.1102230246251565e-16,
+        "maxPixelsAtZoom12": 6.938893903907228e-18
+      },
+      "case": "global aleutian-dateline",
+      "zoom": 9,
+      "selectedId": "USA:ADM2:52423323B14067598441828",
+      "label": "Aleutians West",
+      "point": {
+        "x": 610,
+        "y": 628,
+        "lat": 52.0170077907722,
+        "lng": 179.62646484375003
+      },
+      "worldVertices": {
+        "coarse": 3712,
+        "fine": 49849
+      },
+      "requestedCodes": [
+        "USA",
+        "RUS"
+      ],
+      "administrativeGeometry": "unchanged canonical ADM2",
+      "palette": "identical painted interior",
+      "codewordPreserved": true
+    }
+  ],
+  "screenshots": [
+    "japan-islands-coarse.png",
+    "japan-islands-fine.png",
+    "norway-fjords-coarse.png",
+    "norway-fjords-fine.png",
+    "aleutian-dateline-coarse.png",
+    "aleutian-dateline-fine.png"
+  ],
+  "pageErrors": [],
+  "visualReview": {
+    "overallAccepted": false,
+    "japan": "Coast alignment improves, but newly exposed interior seam-gap rings create visible dash-like marks. Requires repair.",
+    "norway": "Local coastline slivers and offset outlines are removed.",
+    "aleutians": "Selected island coastlines align without pale exterior slivers.",
+    "scope": "Three representative local views; no approval of worldwide coverage or missing-island handling."
+  }
+}

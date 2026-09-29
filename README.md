@@ -30,11 +30,15 @@ const journey = await createCompiledJourneySphere('#map', {
 
 推薦使用預先編譯版本。它會同時下載世界底圖與已造訪國家的形狀，直接在 Canvas 畫布套用 0／1 造訪狀態。座標投影、跨日期線處理和行政區索引都在建置時完成，瀏覽器不必重新計算，也不必先下載完整的區域目錄。沒去過的國家保持留白；已造訪區域上色，並保留原有的行政區邊界顯示規則。
 
+全圖使用相同的分級載入規則：總覽使用較小的底圖；放大到第 6 級後，才按目前視野補上較細的國家與海岸輪廓。細節在初次顯示後載入，最多同時下載三份，並快取最近使用的 32 份。以整個國家／地區為選取單位的輪廓會同步更新填色與點擊範圍；既有行政區 ID、造訪紀錄及配色保持一致。
+
+有行政區資料的國家，其放大輪廓由同一份行政區幾何合併而成，避免海岸線與造訪填色錯位。尚未涵蓋的離島保留背景輪廓；區域接合處的空隙保持原狀，不額外加上深色輪廓。原始資料中的內部水域等孔洞，則在目前縮放比例足以看清時描邊。這些處理適用於整份圖集。
+
 - 套件使用者可從 `@williamzheng0711/journey-sphere/compiled` 匯入 `createCompiledJourneySphere`。
 - 原本的 region ID 和 `js1_` codeword 可直接沿用，`codeword` 優先於 `visited`。
 - 若需要目錄來建立搜尋器或選單，使用 `await journey.loadCatalog()`；新版不提供同步的 `journey.catalog`。
 - 支援原有的狀態、配色、標籤、縮放及回呼選項；需要 Canvas `Path2D` 和 Leaflet 預設的 `CRS.EPSG3857`。`signal` 可取消載入並銷毀地圖。
-- 將 `data/compiled/` 與程式中的 `data/compiled/manifest.js` 一起更新。自訂 atlas 要先執行 `npm run build:compiled`，並透過 `manifest` 選項傳入對應的 manifest。不要混用不同版本。
+- 將 `data/compiled/`、`data/outlines/` 與程式中的 `data/compiled/manifest.js` 一起更新。自訂 atlas 要先執行 `npm run build:compiled`，並透過 `manifest` 選項傳入對應的 manifest。不要混用不同版本。
 
 原有 `createJourneySphere` 仍從 `src/index.js`（套件根路徑）匯出，保留完整的 `catalog` 和 `atlas` API。它也會重疊下載已造訪國家的資料並延後建立標籤，但仍使用 GeoJSON 渲染。既有使用者需將匯入及建立函式改為上面的編譯版本，才能使用新的繪圖方式。若保留原版並自行載入 atlas，可呼叫 `loadAtlas(dataUrl, { visited, codeword, signal })` 提早開始國家資料請求。
 
@@ -75,6 +79,14 @@ loading, or rejects on download failure; the initial map remains usable. Handle
 that promise or use `onError` when the application needs to report detail errors.
 Without `initialCountries`, the existing full-country startup is retained.
 
+Outline refinement is independent of full administrative-region loading.
+`journey.outlineDetailsReady` exposes the latest scheduled viewport request;
+`await journey.loadOutlineDetails()` requests and awaits the current viewport
+immediately, including a retry after failure. Failed detail requests leave the
+overview usable and are reported through `onError`. Moving away or zooming out
+cancels obsolete requests without reporting an error. Call `loadOutlineDetails()`
+after changing the map view when you need to wait for that exact view.
+
 Build a consumer deployment from this project:
 
 ```sh
@@ -94,6 +106,9 @@ Use a dedicated output directory; rerunning overwrites generated files without
 requiring manual map patches. Unreferenced files from earlier exports are left
 in place and are not loaded by the generated manifest.
 
+Detailed outline assets and their source attribution are included locally in
+both export modes, because the viewer can pan into countries outside the visit record.
+
 The consumer reads `data/startup.json` and passes its `visited`, `labels`, and
 `countries` (as `initialCountries`) to `createCompiledJourneySphere`. Keep runtime,
 manifest and data together when deploying. A website can check deployed file
@@ -104,6 +119,8 @@ Run map regression checks here:
 ```sh
 npm run check
 PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/test-map-progressive.mjs
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/test-map-detail.mjs
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/benchmark-zoom.mjs
 ```
 
 The browser check needs an existing Playwright installation and Google Chrome.

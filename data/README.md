@@ -70,6 +70,27 @@ The build is deterministic when `JOURNEY_SPHERE_GENERATED_AT` is omitted. Source
 
 `npm run build:compiled` derives `compiled/` from the checked-in atlas without changing region IDs or codeword order. `compiled/manifest.js` and `manifest.json` describe the catalog fingerprint, country index ranges, colors, and shard paths. `compiled/world.json` and `compiled/countries/<ISO3>.json` contain reusable SVG path commands in projected Web Mercator coordinates. They are consumed as native Canvas `Path2D` objects by the compiled renderer.
 
-Coordinates are rounded to an integer grid of extent `2^24`: each axis has at most half a grid unit of quantization error (0.03125 CSS pixels at zoom 12). This is quantization only; no extra topology simplification is applied. Polygon holes and existing seam normalization are retained; parent outlines omit internal holes as in the original renderer. The same source licenses and attribution apply.
+Coordinates are rounded to an integer grid of extent `2^24`: each axis has at most half a grid unit of quantization error (0.03125 CSS pixels at zoom 12). Administrative region shards retain their existing geometry. The compiled world overview additionally simplifies contours with a projected tolerance of 3,000 grid units (about 0.73 CSS pixels at zoom 4), retaining closed rings and tiny islands. Polygon holes and existing seam normalization are retained; parent outlines omit internal holes as in the original renderer. The same source licenses and attribution apply.
+
+## Detail on zoom
+
+`outlines/<ISO3>.json` contains finer country outlines, loaded only for the visible area at zoom 6 and above. Every atlas entry uses the same refinement path. For countries with administrative shards, the builder merges their actual selectable polygons on the same projected integer grid used by the renderer. This aligns the background coastline with subdivision fills, without changing the original shards. Geometry processing happens at build time.
+
+Natural Earth countries use the pinned 10m input recorded in `outlines/sources.json`. Disjoint offshore polygons from that input also supplement administrative coverage, provided they do not intersect any existing atlas country's geometry. This preserves contextual islands without drawing a second outline over separately represented territories. Missing source entries and every input hash are recorded in the provenance file. Administrative-derived outlines retain their country-specific source licenses and attribution; only the Natural Earth input is public domain.
+
+Fills and hit testing retain complete paths, including holes. Exterior rings are always outlined. Dissolved interior rings are eligible for an outline when supported by an explicit hole in the source geometry; combining adjacent regions does not itself create new hole outlines. Optional `strokeWidths` records an effective width for eligible holes (zero for unsupported gaps), and holes narrower than half a CSS pixel at the current tile zoom are not stroked. This avoids turning gaps between source regions into dark marks. The fill geometry itself is unchanged, so faint source gaps can still be visible at maximum zoom.
+
+Small groups of polygon bounds prevent distant islands or date-line geometry from triggering downloads across empty ocean. The browser downloads at most three outline files concurrently, caches 32 countries, and cancels obsolete viewport requests. Region IDs, codeword ordering and catalog fingerprints stay unchanged. Detail remains limited by the source geometry; this is not a street-level or survey map.
+
+Acquire and archive the pinned input outside the build, then run:
+
+```sh
+npm run build:outlines -- --source-world /absolute/path/to/ne_10m_admin_0_countries.geojson \
+  --source-version ca96624a56bd078437bca8184e78163e5039ad19 \
+  --source-url https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ca96624a56bd078437bca8184e78163e5039ad19/geojson/ne_10m_admin_0_countries.geojson
+npm run build:compiled
+```
+
+The detail builder writes a separate directory so a normal `build:compiled` preserves those assets. Deploy both directories together; static exports include the outlines, their provenance and the loader.
 
 A failed build leaves the previous complete compiled directory intact. Commit or deploy the manifest and generated shards together. The browser still downloads geometry on a first visit; production hosting should serve these static files with compression and versioned caching. The compiled files do not contain user visit history.

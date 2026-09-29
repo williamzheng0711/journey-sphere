@@ -154,3 +154,85 @@ test('interactive false avoids event hooks and toggles', async () => {
     assert.equal(toggled, false);
   });
 });
+
+test('detail replaces world, selectable ADM0 and its parent together, including hit testing and zooming out', async () => {
+  await withBrowserCanvas(async canvases => {
+    const region = record('AA:ADM0:AA', 'P1');
+    const outline = record('world-detail', null);
+    const base = record('world-coarse', null);
+    const parent = record('P1', null);
+    let zoom = 4;
+    const map = mapMock(); map.getZoom = () => zoom;
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [base] }, extent: 2 ** 24,
+      getCountries: () => [{ features: [region], admin1: [parent] }], getVisited: () => [region.id],
+      getOutline: (_code, atZoom) => atZoom >= 6 ? outline : null, outlineRegionIds: [region.id],
+    });
+    layer.onAdd(map);
+    layer.createTile({ x: 0, y: 0, z: 0 });
+    assert.ok(canvases[0].calls.some(call => call[0] === 'fill' && call[1].d === region.d));
+    zoom = 8;
+    layer.createTile({ x: 0, y: 0, z: 0 });
+    const detailedPaths = canvases[1].calls.filter(call => ['fill', 'stroke'].includes(call[0])).map(call => call[1].d);
+    assert.ok(detailedPaths.length > 0);
+    assert.ok(detailedPaths.every(d => d === outline.d), 'no obsolete triangle remains in world, selected, or parent paths');
+    const hit = layer._hitRecord({ latlng: {} });
+    assert.equal(hit.id, region.id); assert.equal(hit.index, region.index); assert.equal(hit.d, outline.d);
+    zoom = 4;
+    assert.equal(layer._hitRecord({ latlng: {} }).d, region.d, 'zooming out restores overview hit geometry too');
+    assert.equal(region.d, record('AA:ADM0:AA', 'P1').d, 'canonical data is immutable');
+    layer.onRemove(map);
+  });
+});
+
+test('adjacent fills finish before world and selected boundary strokes', async () => {
+  await withBrowserCanvas(async canvases => {
+    const world = [record('world-a', null), record('world-b', null)];
+    const selected = [record('AA:1', 'P1'), record('AA:2', 'P1')];
+    const parent = record('P1', null);
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: world }, extent: 2 ** 24, getCountries: () => [{ features: selected, admin1: [parent] }],
+      getVisited: () => selected.map(item => item.id),
+    });
+    layer.createTile({ x: 0, y: 0, z: 0 });
+    const calls = canvases[0].calls;
+    for (const records of [world, selected]) {
+      const paths = new Set(records.map(item => item.d));
+      const fills = calls.flatMap((call, index) => call[0] === 'fill' && paths.has(call[1].d) ? [index] : []);
+      const strokes = calls.flatMap((call, index) => call[0] === 'stroke' && paths.has(call[1].d) ? [index] : []);
+      assert.ok(fills.length > 0 && strokes.length > 0 && Math.max(...fills) < Math.min(...strokes));
+    }
+    const lastFill = calls.findLastIndex(call => call[0] === 'fill');
+    const parentStroke = calls.findIndex(call => call[0] === 'stroke' && call[1].d === parent.d);
+    assert.ok(parentStroke > lastFill, 'selected fills must not obscure parent boundaries');
+  });
+});
+
+test('a stroke just beyond the tile geometry bounds remains visible', async () => {
+  await withBrowserCanvas(async canvases => {
+    const feature = { countryCode: 'AA', d: 'M512.25 10l10 0l0 20l-10 0z', bounds: [512.25, 10, 522.25, 30] };
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [feature] }, extent: 1024, getCountries: () => [], getVisited: () => ['AA:1'],
+    });
+    layer.createTile({ x: 0, y: 0, z: 1 });
+    assert.ok(canvases[0].calls.some(call => call[0] === 'stroke'));
+  });
+});
+
+test('subpixel interior gaps keep their fill geometry and gain a stroke only when resolved', async () => {
+  await withBrowserCanvas(async canvases => {
+    const exterior = 'M10 10l200 0l0 200l-200 0z';
+    const hole = 'M30 30l40 0l0 40l-40 0z';
+    const feature = { countryCode: 'AA', d: `${exterior} ${hole}`, bounds: [10, 10, 210, 210], strokeWidths: [null, 20] };
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [feature] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+    });
+    layer.createTile({ x: 0, y: 0, z: 9 });
+    layer.createTile({ x: 0, y: 0, z: 12 });
+    for (const canvas of canvases) {
+      assert.equal(canvas.calls.find(call => call[0] === 'fill')[1].d, feature.d, 'holes remain in the exact fill at every zoom');
+    }
+    assert.equal(canvases[0].calls.find(call => call[0] === 'stroke')[1].d.trim(), exterior);
+    assert.equal(canvases[1].calls.find(call => call[0] === 'stroke')[1].d.replace(/\s+/g, ' '), feature.d);
+  });
+});

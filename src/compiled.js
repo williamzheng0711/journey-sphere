@@ -6,6 +6,8 @@ const DEFAULT_DATA_URL = new URL('../data/', import.meta.url);
 
 function validateManifest(manifest) {
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const validBounds = value => Array.isArray(value) && value.length === 4 && value.every(Number.isFinite) &&
+    value[0] <= value[2] && value[1] <= value[3];
   if (!isObject(manifest) || manifest.format !== 1 || manifest.extent !== 2 ** 24 || !isObject(manifest.countries) ||
       typeof manifest.version !== 'string' || manifest.version.length === 0 || !Number.isInteger(manifest.regionCount) ||
       manifest.regionCount < 0 || manifest.regionCount > 0xffffffff ||
@@ -26,6 +28,20 @@ function validateManifest(manifest) {
     end += entry.count;
   }
   if (end !== manifest.regionCount) throw new Error('JourneySphere: incomplete compiled atlas.');
+  if (manifest.outlines !== undefined) {
+    const outlines = manifest.outlines;
+    if (!isObject(outlines) || !Number.isFinite(outlines.minZoom) || outlines.minZoom < 0 ||
+        !isObject(outlines.countries)) throw new Error('JourneySphere: invalid detailed outline manifest.');
+    for (const [code, entry] of Object.entries(outlines.countries)) {
+      if (!manifest.countries[code] || !isObject(entry) || typeof entry.file !== 'string' || !entry.file ||
+          !validBounds(entry.bounds) || (entry.parts !== undefined &&
+            (!Array.isArray(entry.parts) || !entry.parts.length || !entry.parts.every(validBounds))) ||
+          !Array.isArray(entry.regionIds) || new Set(entry.regionIds).size !== entry.regionIds.length ||
+          entry.regionIds.some(id => typeof id !== 'string' || !id.startsWith(`${code}:ADM0:`))) {
+        throw new Error('JourneySphere: invalid detailed outline manifest.');
+      }
+    }
+  }
 }
 
 function validatePayload(data, manifest) {
@@ -181,6 +197,8 @@ export async function createCompiledJourneySphere(container, options = {}) {
   let layer;
   let atlas;
   let resizeObserver;
+  let outlineDetail;
+  let outlineSetup = Promise.resolve();
   let destroyed = false;
   let selectionRequest = 0;
   let detailsReady = Promise.resolve();
@@ -193,6 +211,7 @@ export async function createCompiledJourneySphere(container, options = {}) {
     requests.abort();
     options.signal?.removeEventListener('abort', abort);
     resizeObserver?.disconnect();
+    outlineDetail?.destroy();
     map?.remove();
     layer = null;
     atlas?.clear();
@@ -300,6 +319,8 @@ export async function createCompiledJourneySphere(container, options = {}) {
         update([...next]).catch(emitError);
       },
       onError: emitError,
+      getOutline: (code, zoom) => outlineDetail?.get(code, zoom),
+      outlineRegionIds: Object.values(manifest.outlines?.countries || {}).flatMap(entry => entry.regionIds || []),
     }).addTo(map);
     const resize = () => { if (!destroyed) { map.invalidateSize({ pan: false }); map.setMinZoom(minimumZoom()); } };
     resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
@@ -319,6 +340,37 @@ export async function createCompiledJourneySphere(container, options = {}) {
       if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
       else setTimeout(resolve, 0);
     });
+    const emitOutlineError = error => {
+      if (!destroyed && !error?.obsolete && error?.name !== 'AbortError') options.onError?.(error);
+    };
+    // The small overview always gets a chance to paint before any refinement.
+    outlineSetup = (async () => {
+      await nextFrame();
+      if (destroyed) return;
+      await nextFrame();
+      if (destroyed) return;
+      // Module downloads cannot be canceled, but destroying the map must still
+      // settle callers waiting for outline setup without installing listeners.
+      const { createOutlineDetail } = await new Promise((resolve, reject) => {
+        const abortSetup = () => reject(requests.signal.reason);
+        requests.signal.addEventListener('abort', abortSetup, { once: true });
+        import('./outline-detail.js').then(module => {
+          requests.signal.removeEventListener('abort', abortSetup);
+          resolve(module);
+        }, error => {
+          requests.signal.removeEventListener('abort', abortSetup);
+          reject(error);
+        });
+      });
+      if (destroyed) return;
+      outlineDetail = createOutlineDetail({
+        map, manifest, dataUrl: options.dataUrl || DEFAULT_DATA_URL, signal: requests.signal,
+        onChange: () => { if (!destroyed) layer?.refresh(); }, onError: emitOutlineError,
+      });
+      outlineDetail.load().catch(emitOutlineError);
+      return outlineDetail;
+    })();
+    outlineSetup.catch(emitOutlineError);
     detailsReady = (async () => {
       await nextFrame();
       if (destroyed) return;
@@ -346,6 +398,13 @@ export async function createCompiledJourneySphere(container, options = {}) {
       reset: async () => { await update(original); if (!destroyed) map.setView(center, zoom); },
       loadCatalog: () => { if (destroyed) throw new Error('JourneySphere has been destroyed.'); return atlas.loadCatalog(); },
       detailsReady,
+      get outlineDetailsReady() { return outlineDetail?.ready || outlineSetup.then(detail => detail?.ready); },
+      async loadOutlineDetails() {
+        if (destroyed) throw new Error('JourneySphere has been destroyed.');
+        const detail = await outlineSetup;
+        if (destroyed) throw new Error('JourneySphere has been destroyed.');
+        return detail.load();
+      },
       destroy,
     };
   } catch (error) {
