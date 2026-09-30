@@ -31,9 +31,11 @@ function validateManifest(manifest) {
   if (manifest.outlines !== undefined) {
     const outlines = manifest.outlines;
     if (!isObject(outlines) || !Number.isFinite(outlines.minZoom) || outlines.minZoom < 0 ||
+        (outlines.detailZoom !== undefined && (!Number.isFinite(outlines.detailZoom) || outlines.detailZoom < outlines.minZoom)) ||
         !isObject(outlines.countries)) throw new Error('JourneySphere: invalid detailed outline manifest.');
     for (const [code, entry] of Object.entries(outlines.countries)) {
       if (!manifest.countries[code] || !isObject(entry) || typeof entry.file !== 'string' || !entry.file ||
+          (entry.overviewFile !== undefined && (typeof entry.overviewFile !== 'string' || !entry.overviewFile)) ||
           !validBounds(entry.bounds) || (entry.parts !== undefined &&
             (!Array.isArray(entry.parts) || !entry.parts.length || !entry.parts.every(validBounds))) ||
           !Array.isArray(entry.regionIds) || new Set(entry.regionIds).size !== entry.regionIds.length ||
@@ -79,7 +81,7 @@ function parseCountry(data, code, manifest, allowSubset = false) {
 }
 
 /** Start world and selected-country downloads together, without the full catalog. */
-export function loadCompiledAtlas(dataUrl = DEFAULT_DATA_URL, { signal, manifest = bundledManifest } = {}) {
+export function loadCompiledAtlas(dataUrl = DEFAULT_DATA_URL, { signal, manifest = bundledManifest, worldData } = {}) {
   validateManifest(manifest);
   const dataBase = new URL(String(dataUrl).replace(/\/?$/, '/'), globalThis.location?.href || import.meta.url);
   const base = new URL('compiled/', dataBase);
@@ -95,7 +97,10 @@ export function loadCompiledAtlas(dataUrl = DEFAULT_DATA_URL, { signal, manifest
     if (signal?.aborted) throw signal.reason;
     return data;
   }
-  const world = read(manifest.worldFile).then(data => validatePayload(data, manifest));
+  const world = (worldData === undefined ? read(manifest.worldFile) : Promise.resolve(worldData)).then(data => {
+    if (signal?.aborted) throw signal.reason;
+    return validatePayload(data, manifest);
+  });
   // Callers may validate selection before awaiting world; still expose its failure.
   world.catch(() => {});
   async function loadCountry(code) {
@@ -218,7 +223,7 @@ export async function createCompiledJourneySphere(container, options = {}) {
     container.classList.remove('journeysphere');
   }
   try {
-    atlas = loadCompiledAtlas(options.dataUrl, { signal: requests.signal, manifest });
+    atlas = loadCompiledAtlas(options.dataUrl, { signal: requests.signal, manifest, worldData: options.worldData });
     const bootstrapReady = code => {
       const country = bootstrap.get(code);
       if (!country) return false;
@@ -340,6 +345,14 @@ export async function createCompiledJourneySphere(container, options = {}) {
       if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
       else setTimeout(resolve, 0);
     });
+    let detailsRequest;
+    const loadDetails = () => {
+      if (destroyed) return Promise.reject(new Error('JourneySphere has been destroyed.'));
+      if (!detailsRequest) {
+        detailsRequest = loadInitialDetails().catch(error => { detailsRequest = undefined; throw error; });
+      }
+      return detailsRequest;
+    };
     const emitOutlineError = error => {
       if (!destroyed && !error?.obsolete && error?.name !== 'AbortError') options.onError?.(error);
     };
@@ -371,12 +384,12 @@ export async function createCompiledJourneySphere(container, options = {}) {
       return outlineDetail;
     })();
     outlineSetup.catch(emitOutlineError);
-    detailsReady = (async () => {
+    detailsReady = options.backgroundDetails === false ? Promise.resolve() : (async () => {
       await nextFrame();
       if (destroyed) return;
       await nextFrame();
       if (destroyed) return;
-      await loadInitialDetails();
+      await loadDetails();
     })();
     detailsReady.catch(() => {});
     let clamping = false;
@@ -397,8 +410,14 @@ export async function createCompiledJourneySphere(container, options = {}) {
       setVisited: ids => update(ids), setCodeword: word => update(word, true),
       reset: async () => { await update(original); if (!destroyed) map.setView(center, zoom); },
       loadCatalog: () => { if (destroyed) throw new Error('JourneySphere has been destroyed.'); return atlas.loadCatalog(); },
-      detailsReady,
-      get outlineDetailsReady() { return outlineDetail?.ready || outlineSetup.then(detail => detail?.ready); },
+      detailsReady, loadDetails,
+      get outlineDetailsReady() {
+        const ready = outlineDetail?.ready || outlineSetup.then(detail => detail?.ready);
+        // Inspectors and serializers can read this getter without awaiting it.
+        // Keep explicit await rejection while avoiding abandoned promise errors.
+        ready.catch(() => {});
+        return ready;
+      },
       async loadOutlineDetails() {
         if (destroyed) throw new Error('JourneySphere has been destroyed.');
         const detail = await outlineSetup;

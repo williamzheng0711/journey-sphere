@@ -71,7 +71,9 @@ server.on('request', async (request, response) => {
   await originalHandler(request, response);
 });
 
-const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+const browser = await chromium.launch({ headless: true,
+  ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
+});
 const waitFor = (page, expression, timeout = 30000) => page.waitForFunction(expression, null, { timeout });
 const countryPath = /\/data\/compiled\/countries\//;
 const releases = [];

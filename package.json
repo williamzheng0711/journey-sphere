@@ -1,6 +1,6 @@
 {
   "name": "@williamzheng0711/journey-sphere",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A reusable land-only visited-region map with a versioned atlas and compact travel state.",
   "type": "module",
   "license": "MIT",
@@ -10,7 +10,10 @@
     "./compiled": "./src/compiled.js",
     "./state": "./src/state.js",
     "./style.css": "./src/style.css",
-    "./data/*": "./data/*"
+    "./data/*": "./data/*",
+    "./embed.js": "./src/embed.js",
+    "./embed": "./embed.js",
+    "./places": "./src/places.js"
   },
   "files": [
     "src",
@@ -20,22 +23,30 @@
     "test",
     "docs",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "embed.js",
+    "vendor"
   ],
   "sideEffects": [
-    "./src/style.css"
+    "./src/style.css",
+    "./embed.js",
+    "./src/embed.js"
   ],
   "peerDependencies": {
     "leaflet": "^1.9.4"
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "check": "node --check src/index.js && node --check src/compiled.js && node --check src/compiled-layer.js && node --check src/outline-detail.js && node --check src/geometry.js && node --check src/state.js && node --check scripts/build-detail-atlas.mjs && node --check scripts/build-compiled-atlas.mjs && npm test",
+    "check": "node --check src/index.js && node --check src/compiled.js && node --check src/compiled-layer.js && node --check src/outline-detail.js && node --check src/geometry.js && node --check src/state.js && node --check scripts/build-detail-atlas.mjs && node --check scripts/build-outline-overview.mjs && node --check scripts/build-compiled-atlas.mjs && node --check embed.js && node --check src/embed.js && node --check src/place-names.js && node --check src/places.js && node --check scripts/build-embed-data.mjs && npm test",
     "pack:check": "npm pack --dry-run",
     "validate:data": "node scripts/validate-atlas.mjs",
     "build:data": "node scripts/build-atlas.mjs && npm run build:compiled",
-    "build:compiled": "node scripts/build-compiled-atlas.mjs",
-    "build:outlines": "node scripts/build-detail-atlas.mjs"
+    "build:compiled": "node scripts/build-compiled-atlas.mjs && npm run build:embed",
+    "build:outlines": "node scripts/build-detail-atlas.mjs",
+    "build:overview": "node scripts/build-outline-overview.mjs",
+    "build:embed": "node scripts/build-embed-data.mjs",
+    "test:embed": "node scripts/test-embed.mjs",
+    "test:refinement": "node scripts/test-embed-refinement.mjs"
   },
   "engines": {
     "node": ">=20"

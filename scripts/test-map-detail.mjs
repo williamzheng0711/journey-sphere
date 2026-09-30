@@ -7,6 +7,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { decodeOutlinePath } from '../src/outline-detail.js';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -42,7 +43,7 @@ const server = createServer(async (request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1');
     if (url.pathname === '/fixture.html') {
       const scenario = globalScenarios.find(item => item.key === url.searchParams.get('scenario'));
-      const zoom = scenario?.zoom ?? (url.searchParams.get('zoom') === '4' ? 4 : 9);
+      const zoom = scenario?.zoom ?? Number(url.searchParams.get('zoom') || 9);
       const selectedId = scenario?.selectedId || 'HKG:ADM0:HKG';
       const center = scenario?.center || [22.3,114.15];
       response.writeHead(200, { 'Content-Type': mime.html, 'Cache-Control': 'no-store' });
@@ -65,7 +66,9 @@ const originalFetch=window.fetch;window.fetch=function(input,options){const url=
 await mkdir(output, { recursive: true });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+const browser = await chromium.launch({ headless: true,
+  ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
+});
 const contexts = [];
 const checks = [];
 const pageErrors = [];
@@ -323,7 +326,7 @@ try {
   await fineReady(desktop);
   await desktop.screenshot({ path: path.join(output, 'desktop-zoom12-dpr1.png') });
   const requestCount = await desktop.evaluate(() => window.__outlineRequests.length);
-  await desktop.evaluate(() => window.journeySphere.map.setZoom(4,{animate:false}));
+  await desktop.evaluate(() => window.journeySphere.map.setZoom(3,{animate:false}));
   await frames(desktop);
   await desktop.waitForTimeout(150);
   await checkFineScene(desktop, false);
@@ -337,11 +340,31 @@ try {
 
   const overview = await newPage();
   await open(overview, 4);
-  await overview.waitForTimeout(180);
-  assert.deepEqual(await overview.evaluate(() => window.__outlineRequests), [], 'cold zoom-4 overview downloads no detailed outlines');
-  await checkFineScene(overview, false);
+  await fineReady(overview);
+  const overviewState = await overview.evaluate(() => ({
+    requests: window.__outlineRequests, firstPaint: window.__firstTilePaintAt,
+    hkg: window.__layer._sceneAt(window.journeySphere.map.getZoom()).worldRecords.find(record => record.countryCode === 'HKG').d,
+  }));
+  assert.ok(overviewState.requests.length > 0, 'cold zoom-4 overview refines visible countries');
+  const tierAssets = new Set(Object.values(manifest.outlines.countries).map(entry =>
+    new URL(entry.overviewFile, `${origin}/data/compiled/`).href));
+  assert.ok(overviewState.requests.every(request => tierAssets.has(request.url)),
+    'cold zoom-4 overview requests only the declared compact tier or its exact safe fallbacks');
+  assert.ok(overviewState.requests.every(request => request.startTime >= overviewState.firstPaint),
+    'compact refinement waits for the first tile paint');
+  const compactHkg = JSON.parse(await readFile(path.resolve(root, 'data/compiled', manifest.outlines.countries.HKG.overviewFile), 'utf8'));
+  assert.equal(overviewState.hkg, decodeOutlinePath(compactHkg.features[0]), 'zoom-4 land uses the published compact outline');
+  await checkFineScene(overview, true);
   await destroyAndCheck(overview);
-  checks.push({ case: 'cold overview has zero detailed requests' });
+  checks.push({ case: 'cold zoom-4 overview refines after paint using compact assets only', requests: overviewState.requests.length });
+
+  const lowOverview = await newPage();
+  await open(lowOverview, 3);
+  await lowOverview.waitForTimeout(180);
+  assert.deepEqual(await lowOverview.evaluate(() => window.__outlineRequests), [], 'cold zoom-3 overview downloads no refinement assets');
+  await checkFineScene(lowOverview, false);
+  await destroyAndCheck(lowOverview);
+  checks.push({ case: 'cold zoom-3 overview has zero refinement requests' });
 
   const mobile = await newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await open(mobile);

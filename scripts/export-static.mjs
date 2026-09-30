@@ -68,10 +68,19 @@ export async function exportStatic({ recordPath, outputDir, fallbackDataUrl }) {
   if (manifest.outlines) {
     await include('data/outlines/manifest.json');
     await include('data/outlines/sources.json');
-    for (const entry of Object.values(manifest.outlines.countries)) {
-      const file = relative(sourceRoot, resolve(sourceRoot, 'data/compiled/', entry.file));
-      if (!file.startsWith('data/outlines/')) throw new Error('Outline export paths must stay inside data/outlines/.');
-      await include(file);
+    if (manifest.outlines.detailZoom !== undefined) {
+      await include('data/outlines/overview/manifest.json');
+      await include('data/outlines/overview/provenance.json');
+    }
+    for (const [code, entry] of Object.entries(manifest.outlines.countries)) {
+      // Keep the generated tier corpus together with its provenance, including
+      // exact fallback records whose runtime URL reuses the full outline.
+      if (manifest.outlines.detailZoom !== undefined) await include(`data/outlines/overview/${code}.json`);
+      for (const outlineFile of new Set([entry.file, entry.overviewFile].filter(Boolean))) {
+        const file = relative(sourceRoot, resolve(sourceRoot, 'data/compiled/', outlineFile));
+        if (!file.startsWith('data/outlines/')) throw new Error('Outline export paths must stay inside data/outlines/.');
+        await include(file);
+      }
     }
   }
   sourceHashes['data/compiled/manifest.json'] = digest(await read('data/compiled/manifest.json'));

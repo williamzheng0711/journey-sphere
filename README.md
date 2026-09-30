@@ -10,6 +10,8 @@ JourneySphere 是一個可重用的 Leaflet 地圖元件，用來顯示使用者
 
 ## 快速使用
 
+個人網站可使用套件提供的 `<journey-sphere>` 元件，直接傳入地名清單；地圖、Leaflet、樣式和地理資料由同一份 JourneySphere release 載入。請看 [embed 使用方式](docs/embed.md) 及 [範例](examples/embed.html)。網站只維護版面與造訪清單，不需要複製地圖程式或邊界資料。
+
 目前尚未發佈到 npm，可直接使用 source 或先打包。需要 Leaflet 1.9.4。
 
 ```js
@@ -30,7 +32,7 @@ const journey = await createCompiledJourneySphere('#map', {
 
 推薦使用預先編譯版本。它會同時下載世界底圖與已造訪國家的形狀，直接在 Canvas 畫布套用 0／1 造訪狀態。座標投影、跨日期線處理和行政區索引都在建置時完成，瀏覽器不必重新計算，也不必先下載完整的區域目錄。沒去過的國家保持留白；已造訪區域上色，並保留原有的行政區邊界顯示規則。
 
-全圖使用相同的分級載入規則：總覽使用較小的底圖；放大到第 6 級後，才按目前視野補上較細的國家與海岸輪廓。細節在初次顯示後載入，最多同時下載三份，並快取最近使用的 32 份。以整個國家／地區為選取單位的輪廓會同步更新填色與點擊範圍；既有行政區 ID、造訪紀錄及配色保持一致。
+全圖使用相同的分級載入規則：先顯示較小的底圖；第 4 級起，在初次顯示後按目前視野補上精簡但較清楚的國家與海岸輪廓；第 6 級起載入完整輪廓。最多同時下載三份，快取最近使用的 32 份；若畫面包含更多國家，保留全部可見輪廓直到移出畫面，避免重複下載。以整個國家／地區為選取單位的輪廓會同步更新填色與點擊範圍；既有行政區 ID、造訪紀錄及配色保持一致。
 
 有行政區資料的國家，其放大輪廓由同一份行政區幾何合併而成，避免海岸線與造訪填色錯位。尚未涵蓋的離島保留背景輪廓；區域接合處的空隙保持原狀，不額外加上深色輪廓。原始資料中的內部水域等孔洞，則在目前縮放比例足以看清時描邊。這些處理適用於整份圖集。
 
@@ -43,6 +45,8 @@ const journey = await createCompiledJourneySphere('#map', {
 原有 `createJourneySphere` 仍從 `src/index.js`（套件根路徑）匯出，保留完整的 `catalog` 和 `atlas` API。它也會重疊下載已造訪國家的資料並延後建立標籤，但仍使用 GeoJSON 渲染。既有使用者需將匯入及建立函式改為上面的編譯版本，才能使用新的繪圖方式。若保留原版並自行載入 atlas，可呼叫 `loadAtlas(dataUrl, { visited, codeword, signal })` 提早開始國家資料請求。
 
 效能對照的重現方式與測量範圍請看 [效能測試](docs/performance.md)。後續的全圖細節載入、無損壓縮與繪製優化請看 [全圖優化量測](docs/map-refinement.md)。
+
+2026-10-01 的 [網站進入至地圖顯示量測](outputs/embed-refinement/report.md) 以舊版 remote embed 為基準，驗證新版首頁首次顯示由 3.36 秒縮短至 2.93 秒，並包含正常視野細節、放大細節與手機操作檢查。這是空快取、1.6 Mbps、150 ms 延遲的受控本機結果；完整視野的細節會在首次顯示後逐步補齊。
 
 ## 主要功能
 
@@ -77,7 +81,14 @@ are preserved. The initial map can render these regions before full country
 shards arrive. `journey.detailsReady` resolves when initial-country details finish
 loading, or rejects on download failure; the initial map remains usable. Handle
 that promise or use `onError` when the application needs to report detail errors.
-Without `initialCountries`, the existing full-country startup is retained.
+Without `initialCountries`, the existing full-country startup is retained. Set
+`backgroundDetails: false` to keep a partial selection map lightweight; call
+`journey.loadDetails()` when full administrative context is needed. Its completion
+promise can be retried after failure. `detailsReady` tracks automatic loading.
+`worldData` can supply an already-started overview promise without a second fetch.
+
+The remote embed uses these options automatically. It keeps full-country shards
+out of first display and panning, while country outline refinement remains active.
 
 Outline refinement is independent of full administrative-region loading.
 `journey.outlineDetailsReady` exposes the latest scheduled viewport request;
@@ -120,6 +131,7 @@ Run map regression checks here:
 npm run check
 PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/test-map-progressive.mjs
 PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/test-map-detail.mjs
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/test-embed-refinement.mjs
 PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/benchmark-zoom.mjs
 PLAYWRIGHT_MODULE=/absolute/path/to/playwright BENCHMARK_MODE=refinement BASELINE_REF=aa5dcc7e node scripts/benchmark-zoom.mjs
 ```

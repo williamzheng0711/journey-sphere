@@ -142,6 +142,7 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
   if (signal?.aborted) return abortedHandle(signal.reason || new Error('outline detail aborted'));
   const config = manifest.outlines;
   const minZoom = Number.isFinite(config.minZoom) ? config.minZoom : 6;
+  const detailZoom = Number.isFinite(config.detailZoom) ? config.detailZoom : minZoom;
   const countries = config.countries;
   const cache = new Map();
   const pending = new Map();
@@ -160,16 +161,32 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
     if (error?.obsolete || error?.name === 'AbortError') return;
     if (typeof onError === 'function') { try { onError(error); } catch {} }
   };
+  const keyFor = (code, zoom) => `${code}:${zoom < detailZoom && countries[code]?.overviewFile &&
+    countries[code].overviewFile !== countries[code].file ? 'overview' : 'detail'}`;
+  const codeFor = key => key.split(':')[0];
+  const fileFor = key => {
+    const entry = countries[codeFor(key)];
+    return key.endsWith(':overview') ? entry?.overviewFile : entry?.file;
+  };
 
   function visible() {
     if (destroyed || typeof map.getZoom !== 'function' || map.getZoom() < minZoom) return [];
     view = viewport(map);
     if (!view) return [];
+    const centerX = (view.left + view.right) / 2;
+    const centerY = (view.top + view.bottom) / 2;
+    const distance = entry => Math.min(...(entry.parts || [entry.bounds]).map(bounds => {
+      const shift = Math.round((centerX - (bounds[0] + bounds[2]) / 2) / EXTENT) * EXTENT;
+      const dx = Math.max(bounds[0] + shift - centerX, 0, centerX - bounds[2] - shift);
+      const dy = Math.max(bounds[1] - centerY, 0, centerY - bounds[3]);
+      return dx * dx + dy * dy;
+    }));
     return Object.entries(countries).filter(([, entry]) => intersects(entry, view)).sort((a, b) => {
       const area = e => Array.isArray(e.bounds) && e.bounds.length === 4 && e.bounds.every(Number.isFinite)
         ? Math.max(0, e.bounds[2] - e.bounds[0]) * Math.max(0, e.bounds[3] - e.bounds[1]) : Infinity;
-      return area(a[1]) - area(b[1]);
-    }).map(([code]) => code);
+      // Refine the user's focal area before distant islands in a wide view.
+      return distance(a[1]) - distance(b[1]) || area(a[1]) - area(b[1]);
+    }).map(([code]) => cache.has(`${code}:detail`) ? `${code}:detail` : keyFor(code, map.getZoom()));
   }
   function updateVisibility() {
     viewCodes = visible();
@@ -186,43 +203,54 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
       const error = new Error('outline no longer visible'); error.obsolete = true;
       item.reject(error);
     }
+    trimCache();
     return viewCodes;
+  }
+  function trimCache() {
+    const visibleCountries = new Set(viewCodes.map(codeFor));
+    while (cache.size > MAX_CACHE) {
+      const evict = [...cache.keys()].find(key => !visibleCountries.has(codeFor(key)));
+      // A wide viewport can contain more than 32 countries. Keep visible
+      // outlines until the view changes instead of repeatedly downloading them.
+      if (evict === undefined) break;
+      cache.delete(evict);
+    }
   }
   function insert(code, record) {
     if (destroyed) return;
     if (cache.has(code)) cache.delete(code);
     cache.set(code, record);
-    while (cache.size > MAX_CACHE) {
-      const evict = [...cache.keys()].find(key => !viewCodes.includes(key)) || cache.keys().next().value;
-      cache.delete(evict);
-    }
+    if (code.endsWith(':detail')) cache.delete(`${codeFor(code)}:overview`);
+    trimCache();
   }
-  function fetchCode(code) {
+  function fetchCode(key) {
     if (destroyed) return Promise.reject(new Error('outline detail destroyed'));
-    if (cache.has(code)) { const value = cache.get(code); cache.delete(code); cache.set(code, value); return Promise.resolve(value); }
-    if (pending.has(code)) return pending.get(code).promise;
+    if (cache.has(key)) { const value = cache.get(key); cache.delete(key); cache.set(key, value); return Promise.resolve(value); }
+    if (pending.has(key)) return pending.get(key).promise;
+    const code = codeFor(key);
     const entry = countries[code];
-    if (!object(entry) || typeof entry.file !== 'string' || entry.file.length === 0) return Promise.reject(new Error(`Invalid outline manifest entry for ${code}.`));
+    const file = fileFor(key);
+    if (!object(entry) || typeof file !== 'string' || file.length === 0) return Promise.reject(new Error(`Invalid outline manifest entry for ${code}.`));
     const controller = new AbortController();
     const task = { controller, promise: null, done: null, resolve: null, reject: null, settled: false };
     task.promise = new Promise((resolve, reject) => { task.resolve = resolve; task.reject = reject; });
-    task.done = fetch(new URL(entry.file, base), { signal: controller.signal }).then(response => {
+    task.done = fetch(new URL(file, base), { signal: controller.signal }).then(response => {
       if (!response.ok) throw new Error(`JourneySphere: ${response.status} loading outline ${code}`);
       return response.json();
     }).then(data => {
       const record = validateRecord(data, code, manifest);
       if (destroyed || controller.signal.aborted) throw controller.signal.reason || new Error('outline detail aborted');
-      insert(code, record);
-      if (viewCodes.includes(code)) { try { onChange?.(record, code); } catch (error) { fail(error); } }
+      insert(key, record);
+      if (viewCodes.includes(key)) { try { onChange?.(record, code); } catch (error) { fail(error); } }
       return record;
     }).catch(error => { if (task.obsolete) error.obsolete = true; throw error; })
       .then(record => { if (!task.settled) { task.settled = true; task.resolve(record); } return record; }, error => {
         if (!task.settled) { task.settled = true; task.reject(error); }
         throw error;
-      }).finally(() => { if (pending.get(code) === task) pending.delete(code); });
+      }).finally(() => { if (pending.get(key) === task) pending.delete(key); });
     task.promise.catch(() => {});
     task.done.catch(() => {});
-    pending.set(code, task);
+    pending.set(key, task);
     return task.promise;
   }
   function pump() {
@@ -286,8 +314,13 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
   }
   return {
     get(code, zoom = map.getZoom?.()) {
-      if (zoom < minZoom || !cache.has(code)) return null;
-      const value = cache.get(code); cache.delete(code); cache.set(code, value); return value;
+      if (zoom < minZoom) return null;
+      // Keep the best cached coastline visible while its next tier downloads.
+      // Zooming out can reuse exact detail without an overview request.
+      const key = cache.has(`${code}:detail`) ? `${code}:detail` : keyFor(code, zoom);
+      const fallback = cache.has(key) ? key : `${code}:overview`;
+      if (!cache.has(fallback)) return null;
+      const value = cache.get(fallback); cache.delete(fallback); cache.set(fallback, value); return value;
     },
     load, get ready() { return latest; }, destroy,
   };

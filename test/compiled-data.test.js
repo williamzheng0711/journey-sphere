@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { describeCatalog } from '../src/state.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -91,6 +92,86 @@ test('invalid region input fails without replacing the previous compiled atlas',
     assert.equal(await readFile(output, 'utf8'), before);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('a valid compact outline tier is published alongside exact geometry and catalog identity', async () => {
+  const dir = await fixture();
+  try {
+    const { exact, overview } = await outlineFixture(dir);
+    await build(dir);
+    const compiled = JSON.parse(await readFile(path.join(dir, 'compiled/manifest.json'), 'utf8'));
+    assert.deepEqual(compiled.outlines, {
+      ...exact, minZoom: overview.minZoom, detailZoom: overview.detailZoom,
+      countries: { AAA: { ...exact.countries.AAA, overviewFile: overview.countries.AAA.file } },
+    });
+    assert.equal(compiled.regionCount, 2);
+    assert.deepEqual(compiled.fingerprint, exact.fingerprint);
+    const first = await readFile(path.join(dir, 'compiled/manifest.js'), 'utf8');
+    await build(dir);
+    assert.equal(await readFile(path.join(dir, 'compiled/manifest.js'), 'utf8'), first, 'the combined manifest is deterministic');
+    await writeFile(path.join(dir, 'outlines/overview/AAA.json'), await readFile(path.join(dir, 'outlines/AAA.json')));
+    await build(dir);
+    const fallback = JSON.parse(await readFile(path.join(dir, 'compiled/manifest.json'), 'utf8'));
+    assert.equal(fallback.outlines.countries.AAA.overviewFile, fallback.outlines.countries.AAA.file,
+      'an unchanged safe fallback shares the exact URL instead of downloading duplicate data');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('invalid, incomplete, or stale outline tiers leave every previous compiled file intact', async () => {
+  const dir = await fixture();
+  const emitted = ['manifest.json', 'manifest.js', 'world.json', 'countries/AAA.json'];
+  const snapshot = () => Promise.all(emitted.map(file => readFile(path.join(dir, 'compiled', file), 'utf8')));
+  try {
+    await build(dir);
+    const previous = await snapshot();
+    const overviewManifest = path.join(dir, 'outlines/overview/manifest.json');
+    const overviewData = path.join(dir, 'outlines/overview/AAA.json');
+    const write = (file, value) => writeFile(file, JSON.stringify(value));
+    const cases = [
+      { name: 'manifest identity', pattern: /Overview outline manifest does not match/,
+        corrupt: async ({ overview }) => write(overviewManifest, { ...overview, fingerprint: [0, 0] }) },
+      { name: 'payload identity', pattern: /Overview outline data does not match/,
+        corrupt: async ({ payload }) => write(overviewData, { ...payload, version: 'older-atlas' }) },
+      { name: 'missing payload', pattern: /ENOENT/,
+        corrupt: async () => rm(overviewData) },
+      { name: 'stale source hash', pattern: /Overview outline is stale/,
+        corrupt: async ({ payload }) => write(path.join(dir, 'outlines/AAA.json'), { ...payload, revision: 'changed-coastline' }) },
+      { name: 'invalid asset path', pattern: /Invalid overview outline path/,
+        corrupt: async ({ overview }) => write(overviewManifest, { ...overview,
+          countries: { AAA: { ...overview.countries.AAA, file: '../outside.json' } } }) },
+    ];
+    for (const candidate of cases) {
+      const tier = await outlineFixture(dir);
+      await candidate.corrupt(tier);
+      await assert.rejects(build(dir), candidate.pattern, candidate.name);
+      assert.deepEqual(await snapshot(), previous, `${candidate.name} must not partially replace the working atlas`);
+    }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+async function outlineFixture(dir) {
+  const catalog = JSON.parse(await readFile(path.join(dir, 'catalog.json'), 'utf8'));
+  const identity = describeCatalog(catalog);
+  const envelope = { format: 1, version: identity.version, extent: 2 ** 24, fingerprint: identity.fingerprint };
+  const bounds = [0, 0, 10, 10];
+  const exact = { ...envelope, minZoom: 6, countries: {
+    AAA: { file: '../outlines/AAA.json', bounds, parts: [bounds], regionIds: [] },
+  } };
+  const payload = { ...envelope, features: [{ countryCode: 'AAA', bounds,
+    pathEncoding: 'relative-delta-v1', paths: [[0, 0, 10, 0, 0, 10]], strokeWidths: [null] }] };
+  const source = { ...payload, features: [{ ...payload.features[0], paths: [[0, 0, 10, 0, 0, 10, -10, 0]] }] };
+  const sourceText = JSON.stringify(source);
+  const overview = { ...envelope, minZoom: 4, detailZoom: 6, countries: {
+    AAA: { file: '../outlines/overview/AAA.json', sourceSha256: createHash('sha256').update(sourceText).digest('hex') },
+  } };
+  await mkdir(path.join(dir, 'outlines/overview'), { recursive: true });
+  await Promise.all([
+    writeFile(path.join(dir, 'outlines/manifest.json'), JSON.stringify(exact)),
+    writeFile(path.join(dir, 'outlines/AAA.json'), sourceText),
+    writeFile(path.join(dir, 'outlines/overview/manifest.json'), JSON.stringify(overview)),
+    writeFile(path.join(dir, 'outlines/overview/AAA.json'), JSON.stringify(payload)),
+  ]);
+  return { exact, overview, payload };
+}
 
 async function fixture() {
   const dir = await mkdtemp(path.join(tmpdir(), 'journeysphere-compiled-'));

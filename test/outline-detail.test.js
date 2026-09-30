@@ -22,6 +22,67 @@ function map({ zoom = 8, west = 110, east = 116 } = {}) {
   };
 }
 function payload(code) { return { format: 1, version: 'fixture', extent: 2 ** 24, fingerprint: [1, 2], features: [{ id: `${code}:ADM0:${code}`, countryCode: code, d: 'M0 0l1 0l0 1l-1 -1z', bounds: [1, 2, 3, 4] }] }; }
+
+test('progresses from compact overview to exact detail and reuses detail when zooming out', async () => {
+  const tiered = { ...manifest, outlines: { minZoom: 4, detailZoom: 6, countries: {
+    HKG: { ...manifest.outlines.countries.HKG, overviewFile: 'HKG-overview.json' },
+  } } };
+  const overview = payload('HKG');
+  overview.features[0].d = 'M10 10l2 0l0 2l-2 -2z';
+  await withFetch({ 'HKG-overview.json': overview, 'HKG.json': payload('HKG') }, async calls => {
+    const m = map({ zoom: 4 });
+    const controller = createOutlineDetail({ map: m, manifest: tiered, dataUrl: '/fixture/' });
+    try {
+      assert.equal((await controller.load())[0].d, overview.features[0].d);
+      assert.deepEqual(calls.map(url => url.split('/').pop()), ['HKG-overview.json']);
+      assert.equal(controller.get('HKG', 7).d, overview.features[0].d, 'compact coast stays visible during exact download');
+      m.setZoom(7);
+      const [fine] = await controller.load();
+      assert.equal(controller.get('HKG', 7), fine);
+      m.setZoom(4);
+      assert.equal((await controller.load())[0], fine, 'zooming out reuses cached exact detail');
+      assert.equal(controller.get('HKG', 4), fine);
+      assert.equal(calls.length, 2);
+      assert.equal(controller.get('HKG', 3), null);
+    } finally { controller.destroy(); }
+  });
+});
+
+test('an exact-tier failure leaves compact detail visible and can retry', async () => {
+  const tiered = { ...manifest, outlines: { minZoom: 4, detailZoom: 6, countries: {
+    HKG: { ...manifest.outlines.countries.HKG, overviewFile: 'HKG-overview.json' },
+  } } };
+  const files = { 'HKG-overview.json': payload('HKG'), 'HKG.json': new Error('temporary detail failure') };
+  await withFetch(files, async calls => {
+    const m = map({ zoom: 4 });
+    const controller = createOutlineDetail({ map: m, manifest: tiered, dataUrl: '/fixture/' });
+    try {
+      const [compact] = await controller.load();
+      m.setZoom(7);
+      await assert.rejects(controller.load(), /temporary detail failure/);
+      assert.equal(controller.get('HKG', 7), compact);
+      files['HKG.json'] = payload('HKG');
+      await controller.load();
+      assert.equal(calls.length, 3);
+    } finally { controller.destroy(); }
+  });
+});
+
+test('a wide viewport keeps all visible country outlines without cache churn', async () => {
+  const codes = Array.from({ length: 40 }, (_, index) => `A${String.fromCharCode(65 + Math.floor(index / 26))}${String.fromCharCode(65 + index % 26)}`);
+  const countries = Object.fromEntries(codes.map(code => [code, {
+    ...manifest.outlines.countries.HKG, file: `${code}.json`, regionIds: [],
+  }]));
+  await withFetch(Object.fromEntries(codes.map(code => [`${code}.json`, payload(code)])), async calls => {
+    const controller = createOutlineDetail({ map: map(), manifest: { ...manifest, outlines: { minZoom: 6, countries } }, dataUrl: '/fixture/' });
+    try {
+      assert.equal((await controller.load()).length, 40);
+      assert.ok(codes.every(code => controller.get(code, 8)), 'visible countries beyond the cache limit retain detail');
+      await controller.load();
+      assert.equal(calls.length, 40, 'loading the same viewport never downloads evicted visible countries');
+    } finally { controller.destroy(); }
+  });
+});
 async function withFetch(files, fn) {
   const old = globalThis.fetch; const calls = [];
   globalThis.fetch = async url => { calls.push(String(url)); const key = String(url).split('/').pop(); const value = files[key]; return value instanceof Error ? Promise.reject(value) : new Response(JSON.stringify(value), { status: value ? 200 : 404 }); };
@@ -104,11 +165,12 @@ test('rejects malformed packed detail without caching and retries the same count
   });
 });
 
-test('loads only intersecting detail, sorts small bounds first, and deduplicates', async () => {
+test('loads only intersecting detail, prioritizes the viewport center, and deduplicates', async () => {
   await withFetch({ 'HKG.json': payload('HKG'), 'CHN.json': payload('CHN') }, async calls => {
     const changes = []; const controller = createOutlineDetail({ map: map(), manifest, dataUrl: '/fixture/', onChange: record => changes.push(record) });
     const records = await controller.load();
-    assert.deepEqual(records.map(record => record.countryCode), ['HKG', 'CHN']);
+    assert.deepEqual(records.map(record => record.countryCode), ['CHN', 'HKG']);
+    assert.ok(calls[0].endsWith('/CHN.json'), 'country covering the focal area starts before a smaller country farther away');
     await Promise.all([controller.load(), controller.load()]);
     assert.equal(calls.filter(url => url.endsWith('/HKG.json')).length, 1);
     assert.equal(changes.length, 2); controller.destroy();
@@ -145,7 +207,7 @@ test('does not fetch below threshold and retries malformed failures', async () =
     globalThis.fetch = async url => { calls.push(String(url)); return new Response(JSON.stringify(bad ? { ...payload('CHN') } : payload('HKG'))); };
     const controller = createOutlineDetail({ map: map(), manifest, dataUrl: '/fixture/' });
     await assert.rejects(controller.load(), /invalid detailed outline/);
-    bad = false; assert.equal((await controller.load())[0].countryCode, 'HKG'); controller.destroy();
+    bad = false; assert.ok((await controller.load()).some(record => record.countryCode === 'HKG')); controller.destroy();
   });
 });
 
@@ -188,13 +250,16 @@ test('honors already-aborted signals and accepts outlines beyond one wrapped wor
   } finally { globalThis.fetch = old; }
 });
 
-test('keeps a 32-entry LRU and removes malformed path syntax', async () => {
+test('trims nonvisible outlines to a 32-entry LRU and removes malformed path syntax', async () => {
   const countries = Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`C${i}`, { file: `C${i}.json`, bounds: [13_500_000, 5_500_000, 14_000_000, 6_500_000] }]));
   const localManifest = { ...manifest, outlines: { ...manifest.outlines, countries } };
   const old = globalThis.fetch; globalThis.fetch = async url => new Response(JSON.stringify(payload(String(url).split('/').pop().slice(0, -5))));
   try {
-    const controller = createOutlineDetail({ map: map(), manifest: localManifest, dataUrl: '/fixture/' });
-    await controller.load(); assert.equal(controller.get('C0', 8), null); assert.ok(controller.get('C32', 8)); controller.destroy();
+    const m = map();
+    const controller = createOutlineDetail({ map: m, manifest: localManifest, dataUrl: '/fixture/' });
+    await controller.load(); assert.ok(controller.get('C32', 8));
+    m.setZoom(5); await controller.load();
+    assert.equal(controller.get('C0', 8), null); assert.ok(controller.get('C32', 8)); controller.destroy();
   } finally { globalThis.fetch = old; }
   await withFetch({ 'HKG.json': { ...payload('HKG'), features: [{ ...payload('HKG').features[0], d: 'Mgarbage1' }] } }, async () => {
     const onlyHkg = { ...manifest, outlines: { ...manifest.outlines, countries: { HKG: manifest.outlines.countries.HKG } } };

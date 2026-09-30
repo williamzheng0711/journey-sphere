@@ -2,6 +2,7 @@
 import { readFile, writeFile, mkdir, mkdtemp, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { featuresNearLongitudeCopies } from '../src/geometry.js';
 import { describeCatalog } from '../src/state.js';
 
@@ -101,7 +102,10 @@ function simplifyWorld(feature) {
 // Normalize seams once, keeping only the center copy. The browser reuses its
 // native path at wrapped tile offsets, instead of cloning the coordinates.
 const normalize = features => featuresNearLongitudeCopies(features, 0).filter((_, index) => index % 3 === 0);
-const [catalog, palette, world, outlines] = await Promise.all([read('catalog.json'), read('palette.json'), read('world.geojson'), readOptional('outlines/manifest.json')]);
+const [catalog, palette, world, outlines, outlineOverview] = await Promise.all([
+  read('catalog.json'), read('palette.json'), read('world.geojson'),
+  readOptional('outlines/manifest.json'), readOptional('outlines/overview/manifest.json'),
+]);
 const identity = describeCatalog(catalog);
 const indexById = new Map(catalog.regionIds.map((id, index) => [id, index]));
 const seen = new Set();
@@ -138,12 +142,45 @@ try {
   }
   if (seen.size !== identity.regionCount) throw new Error('Source shards do not cover the complete catalog.');
   let outlineMetadata;
+  if (outlineOverview && !outlines) throw new Error('Overview outlines require a matching detailed outline manifest.');
   if (outlines) {
     if (outlines.format !== 1 || outlines.version !== identity.version || outlines.extent !== extent ||
         JSON.stringify(outlines.fingerprint) !== JSON.stringify(identity.fingerprint) || typeof outlines.countries !== 'object') {
       throw new Error('Detail outline manifest identity does not match the compiled atlas.');
     }
     outlineMetadata = outlines;
+    if (outlineOverview) {
+      if (outlineOverview.format !== 1 || outlineOverview.version !== identity.version || outlineOverview.extent !== extent ||
+          JSON.stringify(outlineOverview.fingerprint) !== JSON.stringify(identity.fingerprint) ||
+          !Number.isFinite(outlineOverview.minZoom) || outlineOverview.minZoom < 0 ||
+          outlineOverview.detailZoom !== outlines.minZoom || outlineOverview.minZoom >= outlineOverview.detailZoom ||
+          Object.keys(outlineOverview.countries || {}).length !== Object.keys(outlines.countries).length) {
+        throw new Error('Overview outline manifest does not match the detailed atlas.');
+      }
+      const countries = {};
+      for (const [code, entry] of Object.entries(outlines.countries)) {
+        const file = outlineOverview.countries[code]?.file;
+        if (file !== `../outlines/overview/${code}.json`) throw new Error(`Invalid overview outline path: ${code}`);
+        const sourceBytes = await readFile(path.join(dataDir, 'outlines', `${code}.json`));
+        const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex');
+        if (sourceSha256 !== outlineOverview.countries[code].sourceSha256) {
+          throw new Error(`Overview outline is stale; rebuild it from the current detailed atlas: ${code}`);
+        }
+        // Fail before replacing a working atlas if a tier was only partly built.
+        const overviewBytes = await readFile(path.join(dataDir, 'outlines', 'overview', `${code}.json`));
+        const payload = JSON.parse(overviewBytes);
+        if (payload.version !== identity.version || payload.extent !== extent || payload.format !== 1 ||
+            JSON.stringify(payload.fingerprint) !== JSON.stringify(identity.fingerprint) ||
+            payload.features?.length !== 1 || payload.features[0].countryCode !== code) {
+          throw new Error(`Overview outline data does not match the detailed atlas: ${code}`);
+        }
+        // Some source polygons already contain invalid topology. Their safe
+        // overview keeps the exact source, so reuse one URL/cache entry at every
+        // refinement zoom instead of downloading identical geometry twice.
+        countries[code] = { ...entry, overviewFile: sourceBytes.equals(overviewBytes) ? entry.file : file };
+      }
+      outlineMetadata = { ...outlines, minZoom: outlineOverview.minZoom, detailZoom: outlineOverview.detailZoom, countries };
+    }
   }
   const manifest = { format: 1, ...identity, extent, worldFile: 'world.json', catalogFile: '../catalog.json', countries,
     ...(outlineMetadata ? { outlines: outlineMetadata } : {}) };
