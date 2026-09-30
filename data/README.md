@@ -82,6 +82,8 @@ Fills and hit testing retain complete paths, including holes. Exterior rings are
 
 Small groups of polygon bounds prevent distant islands or date-line geometry from triggering downloads across empty ocean. The browser downloads at most three outline files concurrently, caches 32 countries, and cancels obsolete viewport requests. Region IDs, codeword ordering and catalog fingerprints stay unchanged. Detail remains limited by the source geometry; this is not a street-level or survey map.
 
+Outline records use lossless `relative-delta-v1` transport: `paths` stores integer coordinate deltas, with each ring's origin relative to the previous origin and its closing segment reconstructed by the loader. Decoding restores the original SVG path exactly; it does not simplify the boundary. The loader also accepts the original `d` representation. Decoding is part of the existing deferred loader and requires no additional browser request. Deploy the generated outlines and current runtime together; older runtimes do not understand the compact representation.
+
 Acquire and archive the pinned input outside the build, then run:
 
 ```sh

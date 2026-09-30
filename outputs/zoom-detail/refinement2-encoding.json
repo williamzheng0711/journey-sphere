@@ -1,0 +1,47 @@
+{
+  "baseline": "aa5dcc7e",
+  "countryCount": 259,
+  "exactDecodedPaths": true,
+  "exactMetadata": true,
+  "manifestAndSourcesUnchanged": true,
+  "decodedPathSha256": "a3c0dab45c257cff518a4e2f078953713686a76b4bf47edf2e763b3e1e285521",
+  "totals": {
+    "beforeRaw": 14456421,
+    "afterRaw": 12803896,
+    "beforeGzip": 6337675,
+    "afterGzip": 5365861
+  },
+  "gzipReductionPercent": 15.333919773418481,
+  "samples": {
+    "HKG": {
+      "beforeRaw": 3666,
+      "afterRaw": 3656,
+      "beforeGzip": 1785,
+      "afterGzip": 1731
+    },
+    "JPN": {
+      "beforeRaw": 371653,
+      "afterRaw": 309926,
+      "beforeGzip": 156700,
+      "afterGzip": 125244
+    },
+    "NOR": {
+      "beforeRaw": 425783,
+      "afterRaw": 410943,
+      "beforeGzip": 185561,
+      "afterGzip": 169270
+    },
+    "RUS": {
+      "beforeRaw": 1149832,
+      "afterRaw": 1061005,
+      "beforeGzip": 501378,
+      "afterGzip": 439208
+    },
+    "USA": {
+      "beforeRaw": 510173,
+      "afterRaw": 475607,
+      "beforeGzip": 224334,
+      "afterGzip": 197841
+    }
+  }
+}

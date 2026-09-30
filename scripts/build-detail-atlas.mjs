@@ -38,17 +38,19 @@ function record(feature, code, polygons, holeSupport) {
   const bounds = [Infinity, Infinity, -Infinity, -Infinity];
   const paths = [];
   const strokeWidths = [];
+  let originX = 0; let originY = 0;
   for (const polygon of polygons) for (const [ringIndex, ring] of polygon.entries()) {
     if (!Array.isArray(ring) || ring.length < 4) throw new Error(`Invalid ring for ${code}.`);
     if (ring[0][0] !== ring.at(-1)[0] || ring[0][1] !== ring.at(-1)[1]) throw new Error(`Unclosed ring for ${code}.`);
     let previous;
-    let commands = '';
+    const deltas = [ring[0][0] - originX, ring[0][1] - originY];
+    originX = ring[0][0]; originY = ring[0][1];
     let twiceArea = 0;
     let perimeter = 0;
-    for (const point of ring) {
+    for (const [index, point] of ring.entries()) {
       bounds[0] = Math.min(bounds[0], point[0]); bounds[1] = Math.min(bounds[1], point[1]);
       bounds[2] = Math.max(bounds[2], point[0]); bounds[3] = Math.max(bounds[3], point[1]);
-      commands += previous ? `l${point[0] - previous[0]} ${point[1] - previous[1]}` : `M${point[0]} ${point[1]}`;
+      if (previous && index < ring.length - 1) deltas.push(point[0] - previous[0], point[1] - previous[1]);
       if (previous) {
         twiceArea += (previous[0] - ring[0][0]) * (point[1] - ring[0][1]) -
           (point[0] - ring[0][0]) * (previous[1] - ring[0][1]);
@@ -56,7 +58,7 @@ function record(feature, code, polygons, holeSupport) {
       }
       previous = point;
     }
-    paths.push(`${commands}z`);
+    paths.push(deltas);
     const supported = ringIndex === 0 || !holeSupport || intersectsPolygons([ring], holeSupport);
     strokeWidths.push(ringIndex === 0 ? null : supported && perimeter ? Math.floor(Math.abs(twiceArea) / perimeter) : 0);
   }
@@ -64,8 +66,9 @@ function record(feature, code, polygons, holeSupport) {
   const properties = feature.properties || {};
   const id = properties.id || `${code}:ADM0:${code}`;
   const name = properties.name || properties.NAME || properties.ADMIN || code;
-  return { id, name, countryCode: code, d: paths.join(' '), bounds,
-    ...(strokeWidths.some(width => width !== null) ? { strokeWidths } : {}) };
+  return { id, name, countryCode: code, bounds,
+    ...(strokeWidths.some(width => width !== null) ? { strokeWidths } : {}),
+    pathEncoding: 'relative-delta-v1', paths };
 }
 
 function sourceCodes(feature) {

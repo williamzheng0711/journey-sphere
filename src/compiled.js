@@ -327,9 +327,9 @@ export async function createCompiledJourneySphere(container, options = {}) {
     resizeObserver?.observe(container);
     const loadInitialDetails = async () => {
       if (destroyed) return;
-      const results = await Promise.allSettled(initialCodes.map(async code => {
+      const results = await Promise.allSettled(initialCodes.filter(code => !atlas.loaded.has(code)).map(async code => {
         const country = await atlas.loadCountry(code);
-        if (!destroyed && country && layer) layer.refresh();
+        if (!destroyed && country && active.has(code)) layer?.requestRefresh();
         return country;
       }));
       const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
@@ -365,7 +365,7 @@ export async function createCompiledJourneySphere(container, options = {}) {
       if (destroyed) return;
       outlineDetail = createOutlineDetail({
         map, manifest, dataUrl: options.dataUrl || DEFAULT_DATA_URL, signal: requests.signal,
-        onChange: () => { if (!destroyed) layer?.refresh(); }, onError: emitOutlineError,
+        onChange: () => { if (!destroyed) layer?.requestRefresh(); }, onError: emitOutlineError,
       });
       outlineDetail.load().catch(emitOutlineError);
       return outlineDetail;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createOutlineDetail } from '../src/outline-detail.js';
+import { createOutlineDetail, decodeOutlinePath } from '../src/outline-detail.js';
 
 const manifest = {
   version: 'fixture', extent: 2 ** 24, fingerprint: [1, 2],
@@ -27,6 +27,82 @@ async function withFetch(files, fn) {
   globalThis.fetch = async url => { calls.push(String(url)); const key = String(url).split('/').pop(); const value = files[key]; return value instanceof Error ? Promise.reject(value) : new Response(JSON.stringify(value), { status: value ? 200 : 404 }); };
   try { return await fn(calls); } finally { globalThis.fetch = old; }
 }
+
+test('relative delta rings restore exact origins, deltas, closure, and legacy paths', () => {
+  const d = 'M100 -200l5 0l0 8l-5 -8z M-20 30l0 0l-3 5l3 -5z';
+  const encoded = { pathEncoding: 'relative-delta-v1', paths: [[100, -200, 5, 0, 0, 8], [-120, 230, 0, 0, -3, 5]] };
+  assert.equal(decodeOutlinePath(encoded), d);
+  assert.equal(decodeOutlinePath({ d, pathData: 'unrelated metadata' }), d);
+  assert.equal(decodeOutlinePath({ ...encoded, pathData: 'unrelated metadata' }), d);
+});
+
+test('rejects ambiguous, incomplete, noninteger, and overflowing transport rings', () => {
+  const encoded = { pathEncoding: 'relative-delta-v1', paths: [[0, 0, 1, 0, 0, 1]] };
+  const maximum = Number.MAX_SAFE_INTEGER;
+  const invalid = [
+    null, {}, [], { paths: encoded.paths }, { ...encoded, pathEncoding: 'unknown' },
+    { ...encoded, d: 'M0 0l1 0l0 1l-1 -1z' }, { ...encoded, d: undefined },
+    { d: 'M0 0l1 0l0 1l-1 -1z', paths: undefined },
+    { d: 'M0 0l1 0l0 1l-1 -1z', pathEncoding: undefined },
+    ...[undefined, null, {}, [], [null], [[0, 0, 1, 0]], [[0, 0, 1, 0, 0, 1, 2]],
+      [[0, 0, 0.5, 0, 0, 1]], [[0, 0, Infinity, 0, 0, 1]], [[0, 0, NaN, 0, 0, 1]],
+      [[0, 0, '1', 0, 0, 1]], [[0, 0, null, 0, 0, 1]],
+      [[maximum, 0, 1, 0, 0, 1]],
+      [[maximum, 0, 0, 1, 0, -1], [1, 0, 1, 0, 0, 1]],
+      [[maximum, 0, -maximum, 0, -1, 1]],
+    ].map(paths => ({ ...encoded, paths })),
+  ];
+  for (const feature of invalid) assert.throws(() => decodeOutlinePath(feature), /invalid detailed outline path encoding/);
+});
+
+test('decodes packed detail once, preserves metadata, and attaches only matching manifest parts', async () => {
+  const parts = [[13_500_000, 5_500_000, 13_600_000, 5_700_000], [13_800_000, 6_000_000, 14_000_000, 6_500_000]];
+  const bounds = manifest.outlines.countries.HKG.bounds;
+  const feature = { id: 'HKG:ADM0:HKG', name: 'fixture', countryCode: 'HKG', bounds,
+    strokeWidths: [null, 0], pathEncoding: 'relative-delta-v1', paths: [[0, 0, 1, 0, 0, 1], [5, 5, -1, 0, 0, -1]],
+    parts: [[-1, -1, -1, -1]] };
+  for (const validParts of [true, false]) {
+    const indexParts = validParts ? parts : [parts[0]];
+    const localManifest = { ...manifest, outlines: { ...manifest.outlines, countries: {
+      HKG: { ...manifest.outlines.countries.HKG, parts: indexParts },
+    } } };
+    await withFetch({ 'HKG.json': { ...payload('HKG'), features: [feature] } }, async calls => {
+      const controller = createOutlineDetail({ map: map(), manifest: localManifest, dataUrl: '/fixture/' });
+      try {
+        const [record] = await controller.load();
+        assert.equal(record.d, 'M0 0l1 0l0 1l-1 -1z M5 5l-1 0l0 -1l1 1z');
+        assert.deepEqual(record.strokeWidths, feature.strokeWidths);
+        assert.equal(record.id, feature.id); assert.equal(record.name, feature.name);
+        assert.deepEqual(record.bounds, bounds);
+        assert.equal(Object.hasOwn(record, 'paths'), false);
+        assert.equal(Object.hasOwn(record, 'pathEncoding'), false);
+        if (validParts) {
+          assert.deepEqual(record.parts, parts);
+          assert.notEqual(record.parts, parts); assert.notEqual(record.parts[0], parts[0]);
+        } else assert.equal(Object.hasOwn(record, 'parts'), false, 'inconsistent manifest parts use full bounds');
+        assert.equal((await controller.load())[0], record);
+        assert.equal(calls.length, 1);
+      } finally { controller.destroy(); }
+    });
+  }
+});
+
+test('rejects malformed packed detail without caching and retries the same country', async () => {
+  const onlyHkg = { ...manifest, outlines: { ...manifest.outlines, countries: { HKG: manifest.outlines.countries.HKG } } };
+  const data = payload('HKG');
+  delete data.features[0].d;
+  Object.assign(data.features[0], { pathEncoding: 'relative-delta-v1', paths: [[0, 0, 1, 0, 0.5, 1]] });
+  await withFetch({ 'HKG.json': data }, async calls => {
+    const controller = createOutlineDetail({ map: map(), manifest: onlyHkg, dataUrl: '/fixture/' });
+    try {
+      await assert.rejects(controller.load(), /invalid detailed outline path encoding/);
+      assert.equal(controller.get('HKG', 8), null);
+      data.features[0].paths[0][4] = 0;
+      assert.equal((await controller.load())[0].d, 'M0 0l1 0l0 1l-1 -1z');
+      assert.equal(calls.length, 2);
+    } finally { controller.destroy(); }
+  });
+});
 
 test('loads only intersecting detail, sorts small bounds first, and deduplicates', async () => {
   await withFetch({ 'HKG.json': payload('HKG'), 'CHN.json': payload('CHN') }, async calls => {
@@ -203,6 +279,12 @@ test('all shipped country outlines pass the real loader including its largest pa
     const records = await controller.load();
     assert.deepEqual(records.map(record => record.countryCode).sort(), Object.keys(actualManifest.countries).sort());
     assert.equal(records.length, 259);
+    for (const record of records) {
+      assert.equal(typeof record.d, 'string');
+      assert.equal(Object.hasOwn(record, 'paths'), false);
+      assert.equal(Object.hasOwn(record, 'pathEncoding'), false);
+      assert.deepEqual(record.parts, actualManifest.outlines.countries[record.countryCode].parts);
+    }
   } finally {
     controller.destroy();
     globalThis.fetch = oldFetch;

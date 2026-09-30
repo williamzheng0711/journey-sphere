@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
+import { decodeOutlinePath } from '../src/outline-detail.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const run = promisify(execFile);
@@ -47,8 +48,11 @@ test('detail builder preserves catalog identity and materially improves HKG geom
     const first = await readFile(path.join(dir, 'outlines/manifest.json'), 'utf8');
     const hkg = JSON.parse(await readFile(path.join(dir, 'outlines/HKG.json'), 'utf8'));
     assert.equal(hkg.features[0].countryCode, 'HKG');
-    assert.ok((hkg.features[0].d.match(/[Ml]/g) || []).length > 350);
-    assert.ok(Math.max(...hkg.features[0].d.split(' M').map(ring => (ring.match(/l/g) || []).length)) > 3,
+    const hkgPath = decodeOutlinePath(hkg.features[0]);
+    assert.equal(hkg.features[0].pathEncoding, 'relative-delta-v1');
+    assert.equal(Object.hasOwn(hkg.features[0], 'd'), false);
+    assert.ok((hkgPath.match(/[Ml]/g) || []).length > 350);
+    assert.ok(Math.max(...hkgPath.split(' M').map(ring => (ring.match(/l/g) || []).length)) > 3,
       'detail must retain the Natural Earth main island contour');
     assert.deepEqual(JSON.parse(first).countries.HKG.regionIds, ['HKG:ADM0:HKG']);
     const islandParts = JSON.parse(first).countries.AAA.parts;
@@ -67,8 +71,9 @@ test('generated Natural Earth detail keeps the pinned source and HKG coastline',
   const hkg = JSON.parse(await readFile(path.join(root, 'data/outlines/HKG.json'), 'utf8')).features[0];
   assert.equal(sources.source.sha256, '239eec57ac17f100a11e2536cffc56752c318b50ae765b0918ff7aab4ce8f255');
   assert.equal(manifest.countries.HKG.regionIds[0], 'HKG:ADM0:HKG');
-  assert.ok((hkg.d.match(/[Ml]/g) || []).length >= 350);
-  assert.ok(Math.max(...hkg.d.split(' M').map(ring => (ring.match(/l/g) || []).length)) > 3);
+  const hkgPath = decodeOutlinePath(hkg);
+  assert.ok((hkgPath.match(/[Ml]/g) || []).length >= 350);
+  assert.ok(Math.max(...hkgPath.split(' M').map(ring => (ring.match(/l/g) || []).length)) > 3);
 });
 
 const project = (longitude, latitude, extent) => [
@@ -110,12 +115,15 @@ test('spatial bounds cover every compiled ring and add less than 5 KiB compresse
       assert.ok(part[0] <= part[2] && part[1] <= part[3]);
     }
     const outline = JSON.parse(await readFile(path.join(root, `data/outlines/${code}.json`), 'utf8')).features[0];
-    assert.match(outline.d, /^(?:M-?\d+ -?\d+(?:l-?\d+ -?\d+){3,}z)(?: M-?\d+ -?\d+(?:l-?\d+ -?\d+){3,}z)*$/);
+    assert.equal(outline.pathEncoding, 'relative-delta-v1', `${code} uses compact transport`);
+    assert.equal(Object.hasOwn(outline, 'd'), false, `${code} does not duplicate its path`);
+    const d = decodeOutlinePath(outline);
+    assert.match(d, /^(?:M-?\d+ -?\d+(?:l-?\d+ -?\d+){3,}z)(?: M-?\d+ -?\d+(?:l-?\d+ -?\d+){3,}z)*$/);
     if (outline.strokeWidths) {
-      assert.equal(outline.strokeWidths.length, (outline.d.match(/M/g) || []).length);
+      assert.equal(outline.strokeWidths.length, (d.match(/M/g) || []).length);
       assert.ok(outline.strokeWidths.every(width => width === null || Number.isInteger(width) && width >= 0));
     }
-    for (const ring of outline.d.split(/(?=M)/).filter(Boolean)) {
+    for (const ring of d.split(/(?=M)/).filter(Boolean)) {
       let x; let y;
       const ringBounds = [Infinity, Infinity, -Infinity, -Infinity];
       for (const [, command, rawX, rawY] of ring.matchAll(/([Ml])(-?\d+) (-?\d+)/g)) {
@@ -183,7 +191,7 @@ test('canonical unions align coasts, preserve all hole fills, and retain only un
     const file = path.join(dir, 'outlines/AAA.json');
     const original = await readFile(file, 'utf8');
     const record = JSON.parse(original).features[0];
-    const rings = decodeRings(record.d);
+    const rings = decodeRings(decodeOutlinePath(record));
     const point = (lng, lat) => project(lng, lat, 2 ** 24);
     const contains = (lng, lat) => rings.filter(ring => ringContains(ring, point(lng, lat))).length % 2 === 1;
     assert.equal(contains(0.7, 0.7), true);

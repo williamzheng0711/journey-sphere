@@ -1,0 +1,4 @@
+{"ts":"2026-09-29T17:21:55.237Z","event":"workflow_created","status":"created","message":"Performance goal created with evaluator contract"}
+{"ts":"2026-09-29T17:21:55.428Z","event":"goal_handoff_emitted","status":"in_progress","message":"Emitted model-facing Codex goal handoff; shell command did not mutate Codex goal state"}
+{"ts":"2026-09-29T17:40:06.542Z","event":"validation_passed","status":"validation_passed","validationStatus":"pass","evidence":"Evaluator PASS:95 tests,data259/45863/248,progressive+18-case browser regressions,30-sample benchmark all gates pass,global gzip-15.33%,detail latency-7.69% to-17.70%,zero pixel differences,package810files. See docs/map-refinement.md and completion-audit.md."}
+{"ts":"2026-09-29T17:40:20.693Z","event":"goal_completed","status":"complete","evidence":"Final evaluator and independent review passed; completion-audit.md confirms all local work complete, performance and exact-geometry gates satisfied."}

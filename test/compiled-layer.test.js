@@ -48,8 +48,9 @@ function withBrowserCanvas(callback) {
   const originalDocument = globalThis.document;
   const originalPath2D = globalThis.Path2D;
   const canvases = [];
+  const paths = [];
   globalThis.Path2D = class MockPath2D {
-    constructor(d) { this.d = d; }
+    constructor(d) { this.d = d; paths.push(this); }
   };
   globalThis.document = { createElement: name => {
     if (name === 'span') return { textContent: '' };
@@ -58,7 +59,7 @@ function withBrowserCanvas(callback) {
     canvases.push(canvas);
     return canvas;
   } };
-  return Promise.resolve().then(() => callback(canvases)).finally(() => {
+  return Promise.resolve().then(() => callback(canvases, paths)).finally(() => {
     globalThis.document = originalDocument;
     globalThis.Path2D = originalPath2D;
   });
@@ -159,6 +160,7 @@ test('detail replaces world, selectable ADM0 and its parent together, including 
   await withBrowserCanvas(async canvases => {
     const region = record('AA:ADM0:AA', 'P1');
     const outline = record('world-detail', null);
+    outline.parts = [[0, 0, 100, 100]];
     const base = record('world-coarse', null);
     const parent = record('P1', null);
     let zoom = 4;
@@ -176,6 +178,7 @@ test('detail replaces world, selectable ADM0 and its parent together, including 
     const detailedPaths = canvases[1].calls.filter(call => ['fill', 'stroke'].includes(call[0])).map(call => call[1].d);
     assert.ok(detailedPaths.length > 0);
     assert.ok(detailedPaths.every(d => d === outline.d), 'no obsolete triangle remains in world, selected, or parent paths');
+    assert.deepEqual(layer._compiledScene.activeRecords.find(item => item.id === region.id).parts, outline.parts);
     const hit = layer._hitRecord({ latlng: {} });
     assert.equal(hit.id, region.id); assert.equal(hit.index, region.index); assert.equal(hit.d, outline.d);
     zoom = 4;
@@ -220,7 +223,7 @@ test('a stroke just beyond the tile geometry bounds remains visible', async () =
 });
 
 test('subpixel interior gaps keep their fill geometry and gain a stroke only when resolved', async () => {
-  await withBrowserCanvas(async canvases => {
+  await withBrowserCanvas(async (canvases, paths) => {
     const exterior = 'M10 10l200 0l0 200l-200 0z';
     const hole = 'M30 30l40 0l0 40l-40 0z';
     const feature = { countryCode: 'AA', d: `${exterior} ${hole}`, bounds: [10, 10, 210, 210], strokeWidths: [null, 20] };
@@ -234,5 +237,119 @@ test('subpixel interior gaps keep their fill geometry and gain a stroke only whe
     }
     assert.equal(canvases[0].calls.find(call => call[0] === 'stroke')[1].d.trim(), exterior);
     assert.equal(canvases[1].calls.find(call => call[0] === 'stroke')[1].d.replace(/\s+/g, ' '), feature.d);
+    assert.equal(paths.length, 3, 'fill plus the two distinct stroke eligibility sets');
+  });
+});
+
+test('reuses stroke paths while hole eligibility is unchanged across zooms', async () => {
+  await withBrowserCanvas(async (_canvases, paths) => {
+    const exterior = 'M10 10l200 0l0 200l-200 0z';
+    const wideHole = 'M30 30l40 0l0 40l-40 0z';
+    const duplicateWideHole = 'M90 30l40 0l0 40l-40 0z';
+    const narrowHole = 'M150 30l20 0l0 20l-20 0z';
+    const feature = {
+      countryCode: 'AA', d: `${exterior} ${wideHole} ${duplicateWideHole} ${narrowHole}`,
+      bounds: [10, 10, 210, 210], strokeWidths: [null, 20, 20, 10],
+    };
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [feature] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+    });
+    layer.createTile({ x: 0, y: 0, z: 9 });
+    layer.createTile({ x: 0, y: 0, z: 10 });
+    layer.createTile({ x: 0, y: 0, z: 11 });
+    layer.createTile({ x: 0, y: 0, z: 12 });
+    layer.createTile({ x: 0, y: 0, z: 13 });
+    assert.equal(paths.length, 4, 'fill plus one Path2D for each actual eligibility set');
+    const strokes = paths.slice(1);
+    assert.equal(strokes.length, 3);
+    assert.equal(strokes[0].d.trim(), exterior, 'subpixel holes are omitted');
+    assert.match(strokes[1].d, /M30 30/);
+    assert.doesNotMatch(strokes[1].d, /M150 30/);
+    assert.match(strokes[2].d, /M150 30/, 'the exact half-pixel threshold remains eligible');
+  });
+});
+
+test('culls multipart records per box with stroke padding and world wrapping', async () => {
+  await withBrowserCanvas(async canvases => {
+    const feature = {
+      countryCode: 'AA', d: 'M511.7 10l1 0l0 20l-1 0z', bounds: [0, 0, 1024, 1024],
+      parts: [[900, 10, 910, 20], [511.7, 10, 512.3, 30], [1000, 40, 1010, 60]],
+    };
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [feature] }, extent: 1024, getCountries: () => [], getVisited: () => [],
+    });
+    layer.createTile({ x: 0, y: 0, z: 1 });
+    assert.ok(canvases[0].calls.some(call => call[0] === 'stroke'), 'edge part must retain its padded outline');
+    layer.createTile({ x: 1, y: 0, z: 1 });
+    assert.ok(canvases[1].calls.some(call => call[0] === 'stroke'), 'far part must render in its own tile');
+    layer.createTile({ x: -1, y: 0, z: 1 });
+    assert.ok(canvases[2].calls.some(call => call[0] === 'stroke'), 'dateline-adjacent part must render in the wrapped tile');
+  });
+});
+
+test('requestRefresh coalesces, invalidates immediately, and cannot repaint after removal', async () => {
+  await withBrowserCanvas(async () => {
+    const originalRaf = globalThis.requestAnimationFrame;
+    const originalCancel = globalThis.cancelAnimationFrame;
+    const callbacks = [];
+    const cancelled = [];
+    globalThis.requestAnimationFrame = callback => { callbacks.push(callback); return callbacks.length; };
+    globalThis.cancelAnimationFrame = handle => cancelled.push(handle);
+    try {
+      const layer = createCompiledLayer(makeLeaflet(), {
+        world: { features: [] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+      });
+      const map = mapMock();
+      layer.onAdd(map);
+      layer.requestRefresh().requestRefresh();
+      assert.equal(layer._compiledScene, null, 'scene is invalidated before the frame runs');
+      assert.equal(callbacks.length, 1, 'multiple arrivals share one frame');
+      assert.equal(layer.redrawCount, 0);
+      callbacks[0]();
+      assert.equal(layer.redrawCount, 1);
+      layer.requestRefresh();
+      layer.refresh();
+      assert.equal(layer.redrawCount, 2, 'explicit refresh remains immediate');
+      callbacks[1]();
+      assert.equal(layer.redrawCount, 2, 'explicit refresh cancels queued repaint');
+      layer.requestRefresh();
+      layer.refresh();
+      assert.equal(layer.redrawCount, 3);
+      layer.requestRefresh();
+      callbacks[2]();
+      assert.equal(layer.redrawCount, 3, 'a stale callback cannot clear a newer queued repaint');
+      callbacks[3]();
+      assert.equal(layer.redrawCount, 4);
+      layer.requestRefresh();
+      layer.onRemove(map);
+      callbacks[4]();
+      assert.equal(layer.redrawCount, 4, 'removed layer cannot repaint');
+      assert.deepEqual(cancelled, [2, 3, 5]);
+    } finally {
+      if (originalRaf === undefined) delete globalThis.requestAnimationFrame;
+      else globalThis.requestAnimationFrame = originalRaf;
+      if (originalCancel === undefined) delete globalThis.cancelAnimationFrame;
+      else globalThis.cancelAnimationFrame = originalCancel;
+    }
+  });
+});
+
+test('requestRefresh falls back to one timer when animation frames are unavailable', async () => {
+  await withBrowserCanvas(async () => {
+    const originalRaf = globalThis.requestAnimationFrame;
+    try {
+      delete globalThis.requestAnimationFrame;
+      const layer = createCompiledLayer(makeLeaflet(), {
+        world: { features: [] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+      });
+      layer.onAdd(mapMock());
+      layer.requestRefresh().requestRefresh();
+      assert.equal(layer.redrawCount, 0);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.equal(layer.redrawCount, 1);
+    } finally {
+      if (originalRaf === undefined) delete globalThis.requestAnimationFrame;
+      else globalThis.requestAnimationFrame = originalRaf;
+    }
   });
 });

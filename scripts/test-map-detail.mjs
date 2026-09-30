@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const output = path.join(root, 'outputs/zoom-detail');
+const output = path.resolve(root, process.env.OUTPUT_DIR || 'outputs/zoom-detail');
 const manifest = JSON.parse(await readFile(path.join(root, 'data/compiled/manifest.json'), 'utf8'));
 assert.ok(manifest.outlines?.countries?.HKG, 'compiled manifest has no HKG detail outline');
 const coarse = JSON.parse(execFileSync('git', ['show', '65d417c1:data/compiled/countries/HKG.json'], { cwd: root, encoding: 'utf8' })).features[0];

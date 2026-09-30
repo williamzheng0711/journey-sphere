@@ -42,7 +42,7 @@ const journey = await createCompiledJourneySphere('#map', {
 
 原有 `createJourneySphere` 仍從 `src/index.js`（套件根路徑）匯出，保留完整的 `catalog` 和 `atlas` API。它也會重疊下載已造訪國家的資料並延後建立標籤，但仍使用 GeoJSON 渲染。既有使用者需將匯入及建立函式改為上面的編譯版本，才能使用新的繪圖方式。若保留原版並自行載入 atlas，可呼叫 `loadAtlas(dataUrl, { visited, codeword, signal })` 提早開始國家資料請求。
 
-效能對照的重現方式與測量範圍請看 [效能測試](docs/performance.md)。
+效能對照的重現方式與測量範圍請看 [效能測試](docs/performance.md)。後續的全圖細節載入、無損壓縮與繪製優化請看 [全圖優化量測](docs/map-refinement.md)。
 
 ## 主要功能
 
@@ -121,6 +121,7 @@ npm run check
 PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/test-map-progressive.mjs
 PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/test-map-detail.mjs
 PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/benchmark-zoom.mjs
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright BENCHMARK_MODE=refinement BASELINE_REF=aa5dcc7e node scripts/benchmark-zoom.mjs
 ```
 
 The browser check needs an existing Playwright installation and Google Chrome.

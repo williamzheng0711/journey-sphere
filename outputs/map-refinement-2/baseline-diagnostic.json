@@ -1,0 +1,71 @@
+{
+  "baseline": "aa5dcc7e",
+  "scope": "Exploratory single-run baseline profiling; not a comparative benchmark or pass verdict.",
+  "settings": {
+    "viewport": [
+      1200,
+      800
+    ],
+    "dpr": 1,
+    "browser": "Chrome",
+    "network": "local unthrottled",
+    "warmup": "one Japan run"
+  },
+  "metricsNote": "Tile CPU wraps synchronous createTile. Canvas calls may defer raster work. Timings include identical profiling overhead; call counts are the strongest evidence.",
+  "startup": [
+    {
+      "scenario": "Japan, one selected country",
+      "zoom": 9,
+      "tileCount": 120,
+      "tilesPerRedraw": 24,
+      "tileCpuMs": 33.7,
+      "initialCountryRedraws": 1,
+      "outlineRedraws": 3,
+      "initialCountryRedrawMs": 5.0
+    },
+    {
+      "scenario": "Japan, three selected countries",
+      "zoom": 9,
+      "tileCount": 168,
+      "tilesPerRedraw": 24,
+      "tileCpuMs": 46.0,
+      "initialCountryRedraws": 3,
+      "outlineRedraws": 3,
+      "initialCountryRedrawMs": 15.0
+    },
+    {
+      "scenario": "Norway",
+      "zoom": 9,
+      "tileCount": 75,
+      "tilesPerRedraw": 25,
+      "tileCpuMs": 20.4,
+      "initialCountryRedraws": 1,
+      "outlineRedraws": 1,
+      "initialCountryRedrawMs": 4.7
+    },
+    {
+      "scenario": "Alaska",
+      "zoom": 7,
+      "tileCount": 72,
+      "tilesPerRedraw": 24,
+      "tileCpuMs": 22.8,
+      "initialCountryRedraws": 1,
+      "outlineRedraws": 1,
+      "initialCountryRedrawMs": 5.5
+    }
+  ],
+  "cachedUSAToEurope": {
+    "tileCount": 72,
+    "tileCpuMs": 14.1,
+    "irrelevantUSAFillAndStrokeCalls": 144,
+    "parsedPathBytes": 780510
+  },
+  "warmEuropeZoom": {
+    "tileCount": 20,
+    "tileCpuMs": 4.9,
+    "irrelevantUSAFillAndStrokeCalls": 40,
+    "parsedPathBytes": 464318,
+    "outlineRedraws": 0
+  },
+  "browserErrors": []
+}

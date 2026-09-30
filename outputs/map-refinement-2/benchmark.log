@@ -1,0 +1,187 @@
+east-asia baseline 1: first 3147.9 ms; detail 1745.6 ms / 279159 bytes; 96 tiles / 22.1 ms CPU
+east-asia current 1: first 3143.8 ms; detail 1453.7 ms / 210813 bytes; 96 tiles / 29.8 ms CPU
+east-asia current 2: first 3139.8 ms; detail 1445.6 ms / 210813 bytes; 96 tiles / 31.0 ms CPU
+east-asia baseline 2: first 3164.8 ms; detail 1756.5 ms / 279159 bytes; 96 tiles / 24.5 ms CPU
+east-asia baseline 3: first 3159.5 ms; detail 1757.2 ms / 279159 bytes; 96 tiles / 19.9 ms CPU
+east-asia current 3: first 3147.8 ms; detail 1446.4 ms / 210813 bytes; 96 tiles / 33.9 ms CPU
+east-asia current 4: first 3171.9 ms; detail 1442.9 ms / 210813 bytes; 96 tiles / 28.8 ms CPU
+east-asia baseline 4: first 3145.9 ms; detail 1759.1 ms / 279159 bytes; 96 tiles / 26.1 ms CPU
+east-asia baseline 5: first 3162.8 ms; detail 1748.9 ms / 279159 bytes; 96 tiles / 26.1 ms CPU
+east-asia current 5: first 3153.1 ms; detail 1443.9 ms / 210813 bytes; 96 tiles / 31.8 ms CPU
+norway baseline 1: first 5605.7 ms; detail 1321.5 ms / 185561 bytes; 50 tiles / 18.8 ms CPU
+norway current 1: first 5595.0 ms; detail 1207.1 ms / 169270 bytes; 50 tiles / 20.4 ms CPU
+norway current 2: first 5599.5 ms; detail 1219.9 ms / 169270 bytes; 50 tiles / 20.2 ms CPU
+norway baseline 2: first 5618.4 ms; detail 1307.2 ms / 185561 bytes; 50 tiles / 16.9 ms CPU
+norway baseline 3: first 5610.2 ms; detail 1322.2 ms / 185561 bytes; 50 tiles / 20.1 ms CPU
+norway current 3: first 5609.4 ms; detail 1217.6 ms / 169270 bytes; 50 tiles / 19.5 ms CPU
+norway current 4: first 5591.3 ms; detail 1220.1 ms / 169270 bytes; 50 tiles / 20.1 ms CPU
+norway baseline 4: first 5594.4 ms; detail 1322.4 ms / 185561 bytes; 50 tiles / 19.8 ms CPU
+norway baseline 5: first 5578.2 ms; detail 1293.9 ms / 185561 bytes; 50 tiles / 11.3 ms CPU
+norway current 5: first 5590.5 ms; detail 1220.6 ms / 169270 bytes; 50 tiles / 20.6 ms CPU
+pacific baseline 1: first 8586.5 ms; detail 4071.2 ms / 725712 bytes; 60 tiles / 44.9 ms CPU
+pacific current 1: first 8585.6 ms; detail 3626.2 ms / 637049 bytes; 60 tiles / 40.2 ms CPU
+pacific current 2: first 8585.9 ms; detail 3645.2 ms / 637049 bytes; 60 tiles / 41.2 ms CPU
+pacific baseline 2: first 8595.3 ms; detail 4077.9 ms / 725712 bytes; 60 tiles / 41.5 ms CPU
+pacific baseline 3: first 8600.5 ms; detail 4088.4 ms / 725712 bytes; 60 tiles / 47.5 ms CPU
+pacific current 3: first 8597.2 ms; detail 3641.6 ms / 637049 bytes; 60 tiles / 42.4 ms CPU
+pacific current 4: first 8589.5 ms; detail 3611.8 ms / 637049 bytes; 60 tiles / 26.9 ms CPU
+pacific baseline 4: first 8584.1 ms; detail 4063.2 ms / 725712 bytes; 60 tiles / 40.8 ms CPU
+pacific baseline 5: first 8599.0 ms; detail 4085.2 ms / 725712 bytes; 60 tiles / 43.3 ms CPU
+pacific current 5: first 8577.3 ms; detail 3641.6 ms / 637049 bytes; 60 tiles / 44.0 ms CPU
+{
+  "corpus": {
+    "baseline": {
+      "countries": 259,
+      "gzipBytes": 6337675
+    },
+    "current": {
+      "countries": 259,
+      "gzipBytes": 5365861
+    },
+    "byteReduction": 0.1533391977341848,
+    "pass": true
+  },
+  "byScenario": {
+    "east-asia": {
+      "baseline": {
+        "firstDisplayMs": 3159.5,
+        "firstDisplayTransferBytes": 455119,
+        "zoomDetailMs": 1756.5,
+        "detailEncodedBytes": 279159,
+        "detailTransferBytes": 280059,
+        "detailRequestCount": 3,
+        "startupTileCount": 48,
+        "startupTileCpuMs": 15.900000005960464,
+        "startupRedrawCount": 1,
+        "detailTileCount": 96,
+        "detailTileCpuMs": 24.499999970197678,
+        "detailRedrawCount": 3
+      },
+      "current": {
+        "firstDisplayMs": 3147.800000011921,
+        "firstDisplayTransferBytes": 455697,
+        "zoomDetailMs": 1445.5999999940395,
+        "detailEncodedBytes": 210813,
+        "detailTransferBytes": 211713,
+        "detailRequestCount": 3,
+        "startupTileCount": 24,
+        "startupTileCpuMs": 13.900000005960464,
+        "startupRedrawCount": 0,
+        "detailTileCount": 96,
+        "detailTileCpuMs": 31,
+        "detailRedrawCount": 3
+      },
+      "firstDisplayBudgetMs": 157.97500000000002,
+      "detailByteReduction": 0.2448282161778771,
+      "detailLatencyReduction": 0.17699971534640502,
+      "pass": true
+    },
+    "norway": {
+      "baseline": {
+        "firstDisplayMs": 5605.700000017881,
+        "firstDisplayTransferBytes": 943219,
+        "zoomDetailMs": 1321.5,
+        "detailEncodedBytes": 185561,
+        "detailTransferBytes": 185861,
+        "detailRequestCount": 1,
+        "startupTileCount": 48,
+        "startupTileCpuMs": 20.400000005960464,
+        "startupRedrawCount": 1,
+        "detailTileCount": 50,
+        "detailTileCpuMs": 18.799999922513962,
+        "detailRedrawCount": 1
+      },
+      "current": {
+        "firstDisplayMs": 5595,
+        "firstDisplayTransferBytes": 943797,
+        "zoomDetailMs": 1219.9000000059605,
+        "detailEncodedBytes": 169270,
+        "detailTransferBytes": 169570,
+        "detailRequestCount": 1,
+        "startupTileCount": 24,
+        "startupTileCpuMs": 17.399999976158142,
+        "startupRedrawCount": 0,
+        "detailTileCount": 50,
+        "detailTileCpuMs": 20.19999995827675,
+        "detailRedrawCount": 1
+      },
+      "firstDisplayBudgetMs": 280.28500000089406,
+      "detailByteReduction": 0.08779323241413872,
+      "detailLatencyReduction": 0.07688233068031747,
+      "pass": true
+    },
+    "pacific": {
+      "baseline": {
+        "firstDisplayMs": 8595.300000011921,
+        "firstDisplayTransferBytes": 1540335,
+        "zoomDetailMs": 4077.9000000059605,
+        "detailEncodedBytes": 725712,
+        "detailTransferBytes": 726312,
+        "detailRequestCount": 2,
+        "startupTileCount": 48,
+        "startupTileCpuMs": 18.899999976158142,
+        "startupRedrawCount": 1,
+        "detailTileCount": 60,
+        "detailTileCpuMs": 43.29999989271164,
+        "detailRedrawCount": 2,
+        "warm": {
+          "elapsedMs": 261.59999999403954,
+          "tileCpuMs": 14.5,
+          "tileCount": 44,
+          "parsedPathBytes": 1362727,
+          "distantCountryDraws": 176
+        }
+      },
+      "current": {
+        "firstDisplayMs": 8585.90000000596,
+        "firstDisplayTransferBytes": 1540913,
+        "zoomDetailMs": 3641.5999999940395,
+        "detailEncodedBytes": 637049,
+        "detailTransferBytes": 637649,
+        "detailRequestCount": 2,
+        "startupTileCount": 24,
+        "startupTileCpuMs": 18,
+        "startupRedrawCount": 0,
+        "detailTileCount": 60,
+        "detailTileCpuMs": 41.200000047683716,
+        "detailRedrawCount": 2,
+        "warm": {
+          "elapsedMs": 132.30000001192093,
+          "tileCpuMs": 7.800000011920929,
+          "tileCount": 44,
+          "parsedPathBytes": 51756,
+          "distantCountryDraws": 0
+        }
+      },
+      "firstDisplayBudgetMs": 429.76500000059605,
+      "detailByteReduction": 0.12217380999625194,
+      "detailLatencyReduction": 0.10699134358647422,
+      "pass": true
+    }
+  },
+  "pixels": {
+    "east-asia": {
+      "equal": true,
+      "width": 1200,
+      "height": 800,
+      "differentPixels": 0,
+      "maxChannelDifference": 0
+    },
+    "norway": {
+      "equal": true,
+      "width": 1200,
+      "height": 800,
+      "differentPixels": 0,
+      "maxChannelDifference": 0
+    },
+    "pacific": {
+      "equal": true,
+      "width": 1200,
+      "height": 800,
+      "differentPixels": 0,
+      "maxChannelDifference": 0
+    }
+  },
+  "cullingPass": true,
+  "pass": true
+}

@@ -1,0 +1,3 @@
+Bootstrap ready while country details are held
+Click changed selection
+PASS progressive bootstrap (2 held detail requests), failure recovery, interaction, and reset

@@ -253,8 +253,8 @@ function makeLeaflet() {
     getTileSize() { return { x: 256, y: 256 }; }
     onAdd() {}
     onRemove() {}
-    addTo(map) { this.onAdd(map); return this; }
-    redraw() { return this; }
+    addTo(map) { (map.layers ||= []).push(this); this.onAdd(map); return this; }
+    redraw() { this.redrawCount = (this.redrawCount || 0) + 1; return this; }
   }
   GridLayer.extend = methods => { class Layer extends GridLayer {} Object.assign(Layer.prototype, methods); return Layer; };
   const leaflet = {
@@ -267,6 +267,51 @@ function makeLeaflet() {
   };
   return leaflet;
 }
+
+test('full-country startup does not redraw the same countries after first display', async () => {
+  await withCompiledDom(async ({ leaflet }) => {
+    await withFactoryFetch({ AAA: payload([feature('AAA:r1', 'AAA', 0)]), BBB: payload([feature('BBB:r1', 'BBB', 1)]) }, async () => {
+      const sphere = await createCompiledJourneySphere(createContainer(), {
+        leaflet, dataUrl: '/fixture/', manifest, visited: ['AAA:r1', 'BBB:r1'],
+      });
+      await sphere.detailsReady;
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.equal(sphere.map.layers[0].redrawCount || 0, 0);
+      sphere.destroy();
+    });
+  });
+});
+
+test('progressive startup still repaints when the full country replaces a subset', async () => {
+  await withCompiledDom(async ({ leaflet }) => {
+    const identity = describeCatalog({ version: 'fixture', regionIds: ['AAA:r1', 'AAA:r2'] });
+    const localManifest = { ...manifest, fingerprint: identity.fingerprint, countries: {
+      AAA: { ...manifest.countries.AAA, count: 2 }, BBB: { ...manifest.countries.BBB, start: 2, count: 0 },
+    } };
+    const envelope = features => ({ ...payload(features), fingerprint: identity.fingerprint });
+    const selected = feature('AAA:r1', 'AAA', 0);
+    const full = deferred();
+    await withFactoryFetch({ AAA: full.promise }, async () => {
+      const oldFetch = globalThis.fetch;
+      globalThis.fetch = (url, options) => String(url).endsWith('world.json')
+        ? Promise.resolve(new Response(JSON.stringify(envelope([])))) : oldFetch(url, options);
+      try {
+        const sphere = await createCompiledJourneySphere(createContainer(), {
+          leaflet, dataUrl: '/fixture/', manifest: localManifest, visited: ['AAA:r1'],
+          initialCountries: { AAA: envelope([selected]) },
+        });
+        const layer = sphere.map.layers[0];
+        assert.equal(layer._sceneAt(4).activeRecords.length, 1);
+        full.resolve(envelope([selected, feature('AAA:r2', 'AAA', 1)]));
+        await sphere.detailsReady;
+        await new Promise(resolve => setTimeout(resolve, 0));
+        assert.equal(layer.redrawCount, 1);
+        assert.equal(layer._sceneAt(4).activeRecords.length, 2);
+        sphere.destroy();
+      } finally { globalThis.fetch = oldFetch; }
+    });
+  });
+});
 
 async function withCompiledDom(callback) {
   const oldDocument = globalThis.document;

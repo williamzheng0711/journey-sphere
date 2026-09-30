@@ -20,6 +20,41 @@ function pathIsValid(path) {
   return typeof path === 'string' &&
     /^(?:M-?\d+ -?\d+(?:l-?\d+ -?\d+){3,}z)(?: M-?\d+ -?\d+(?:l-?\d+ -?\d+){3,}z)*$/.test(path);
 }
+
+/** Expand transport rings to the original closed SVG path; legacy paths remain supported.
+ * Each ring starts relative to the previous ring's origin (initially 0,0), then
+ * stores point deltas. The final closing delta is reconstructed without loss.
+ */
+export function decodeOutlinePath(feature) {
+  const invalid = () => new Error('JourneySphere: invalid detailed outline path encoding.');
+  if (!object(feature)) throw invalid();
+  if (Object.hasOwn(feature, 'd')) {
+    if (Object.hasOwn(feature, 'paths') || Object.hasOwn(feature, 'pathEncoding') ||
+        !pathIsValid(feature.d)) throw invalid();
+    return feature.d;
+  }
+  if (feature.pathEncoding !== 'relative-delta-v1' ||
+      !Array.isArray(feature.paths) || !feature.paths.length) throw invalid();
+  const integer = value => { if (!Number.isSafeInteger(value)) throw invalid(); return value; };
+  const rings = [];
+  let originX = 0; let originY = 0;
+  for (const ring of feature.paths) {
+    if (!Array.isArray(ring) || ring.length < 6 || ring.length % 2 !== 0) throw invalid();
+    originX = integer(originX + integer(ring[0]));
+    originY = integer(originY + integer(ring[1]));
+    let x = originX; let y = originY;
+    const commands = [`M${x} ${y}`];
+    for (let index = 2; index < ring.length; index += 2) {
+      const dx = integer(ring[index]); const dy = integer(ring[index + 1]);
+      x = integer(x + dx); y = integer(y + dy);
+      commands.push(`l${dx} ${dy}`);
+    }
+    commands.push(`l${integer(originX - x)} ${integer(originY - y)}z`);
+    rings.push(commands.join(''));
+  }
+  return rings.join(' ');
+}
+
 function sameFingerprint(a, b) {
   return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => v === b[i]);
 }
@@ -31,15 +66,27 @@ function validateRecord(data, code, manifest) {
   }
   const feature = data.features[0];
   if (!object(feature) || feature.countryCode !== code ||
-      !pathIsValid(feature.d) || (feature.strokeWidths !== undefined &&
-        (!Array.isArray(feature.strokeWidths) || feature.strokeWidths.length !== (feature.d.match(/M/g) || []).length ||
-          !feature.strokeWidths.every(width => width === null || (Number.isInteger(width) && width >= 0)))) ||
       !Array.isArray(feature.bounds) || feature.bounds.length !== 4 ||
       !feature.bounds.every(Number.isFinite) || feature.bounds[0] > feature.bounds[2] ||
       feature.bounds[1] > feature.bounds[3]) {
     throw new Error(`JourneySphere: invalid detailed outline geometry for ${code}.`);
   }
-  return feature;
+  const d = decodeOutlinePath(feature);
+  if (feature.strokeWidths !== undefined &&
+      (!Array.isArray(feature.strokeWidths) || feature.strokeWidths.length !== (d.match(/M/g) || []).length ||
+        !feature.strokeWidths.every(width => width === null || (Number.isInteger(width) && width >= 0)))) {
+    throw new Error(`JourneySphere: invalid detailed outline geometry for ${code}.`);
+  }
+  // Drop transport arrays after expansion; only keep a validated spatial index.
+  const { pathEncoding, paths, parts: ignoredParts, ...record } = feature;
+  const parts = manifest.outlines?.countries?.[code]?.parts;
+  if (Array.isArray(parts) && parts.length && parts.every(part => Array.isArray(part) && part.length === 4 &&
+      part.every(Number.isFinite) && part[0] <= part[2] && part[1] <= part[3])) {
+    const bounds = parts.reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]),
+      Math.max(a[2], b[2]), Math.max(a[3], b[3])], [Infinity, Infinity, -Infinity, -Infinity]);
+    if (bounds.every((value, index) => value === feature.bounds[index])) record.parts = parts.map(part => [...part]);
+  }
+  return { ...record, d };
 }
 
 function projected(value, map) {

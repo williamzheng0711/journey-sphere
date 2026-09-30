@@ -26,24 +26,31 @@ export function createCompiledLayer(L, options) {
     if (!outline) return record;
     let records = replacements.get(outline);
     if (!records) replacements.set(outline, records = new WeakMap());
-    if (!records.has(record)) records.set(record, { ...record, d: outline.d, bounds: outline.bounds, strokeWidths: outline.strokeWidths });
+    if (!records.has(record)) records.set(record, {
+      ...record, d: outline.d, bounds: outline.bounds, parts: outline.parts, strokeWidths: outline.strokeWidths,
+    });
     return records.get(record);
   };
   const pathFor = (record, stroke = false, zoom = 0) => {
     if (stroke && record.strokeWidths) {
       let cached = strokePaths.get(record);
       if (!cached) {
-        cached = { rings: record.d.match(/M[^M]+/g), zooms: new Map() };
+        const positiveWidths = [...new Set(record.strokeWidths.filter(width => Number.isFinite(width) && width > 0))].sort((a, b) => a - b);
+        cached = { rings: record.d.match(/M[^M]+/g), positiveWidths, paths: new Map() };
         strokePaths.set(record, cached);
       }
-      if (!cached.zooms.has(zoom)) {
+      const minimumWidth = 0.5 * extent / (256 * 2 ** zoom);
+      const firstEligible = cached.positiveWidths.findIndex(width => width >= minimumWidth);
+      // Positive widths are sorted, so the first eligible width uniquely identifies
+      // the complete eligible suffix. The exterior ring (null) remains unconditional.
+      const key = firstEligible < 0 ? 'none' : String(cached.positiveWidths[firstEligible]);
+      if (!cached.paths.has(key)) {
         // Keep the exact fill; outline only supported holes wide enough to resolve.
-        const minimumWidth = 0.5 * extent / (256 * 2 ** zoom);
         const rings = cached.rings.filter((_, index) => record.strokeWidths[index] === null ||
           record.strokeWidths[index] >= minimumWidth);
-        cached.zooms.set(zoom, new Path2D(rings.join(' ')));
+        cached.paths.set(key, new Path2D(rings.join(' ')));
       }
-      return cached.zooms.get(zoom);
+      return cached.paths.get(key);
     }
     if (!paths.has(record)) paths.set(record, new Path2D(record.d));
     return paths.get(record);
@@ -72,16 +79,19 @@ export function createCompiledLayer(L, options) {
   }
 
   function tileShifts(record, coords, zoom, padding) {
-    if (!record.bounds) return WORLD_SHIFT_OFFSETS;
+    const boxes = Array.isArray(record.parts) && record.parts.length
+      ? record.parts : record.bounds ? [record.bounds] : null;
+    if (!boxes) return WORLD_SHIFT_OFFSETS;
     const worldWidth = extent / (2 ** zoom);
     const left = coords.x * worldWidth;
     const right = left + worldWidth;
-    const [minX, minY, maxX, maxY] = record.bounds;
     return WORLD_SHIFT_OFFSETS.filter(shift => {
-      const shiftedMin = minX + shift * extent;
-      const shiftedMax = maxX + shift * extent;
-      return shiftedMax + padding >= left && shiftedMin - padding <= right &&
-        maxY + padding >= coords.y * worldWidth && minY - padding <= (coords.y + 1) * worldWidth;
+      return boxes.some(([minX, minY, maxX, maxY]) => {
+        const shiftedMin = minX + shift * extent;
+        const shiftedMax = maxX + shift * extent;
+        return shiftedMax + padding >= left && shiftedMin - padding <= right &&
+          maxY + padding >= coords.y * worldWidth && minY - padding <= (coords.y + 1) * worldWidth;
+      });
     });
   }
 
@@ -129,6 +139,35 @@ export function createCompiledLayer(L, options) {
   }
 
   const Layer = L.GridLayer.extend({
+    _cancelCompiledRefresh() {
+      const handle = this._compiledRefreshFrame;
+      const cancel = this._compiledRefreshCancel;
+      this._compiledRefreshFrame = null;
+      this._compiledRefreshCancel = null;
+      this._compiledRefreshQueued = false;
+      this._compiledRefreshToken = (this._compiledRefreshToken || 0) + 1;
+      if (handle !== null && handle !== undefined && typeof cancel === 'function') cancel(handle);
+    },
+    requestRefresh() {
+      this._clearCompiledHover();
+      this._compiledScene = null;
+      if (!this._compiledMap || this._compiledRefreshQueued) return this;
+      const token = (this._compiledRefreshToken || 0) + 1;
+      this._compiledRefreshToken = token;
+      this._compiledRefreshQueued = true;
+      const repaint = () => {
+        if (!this._compiledRefreshQueued || this._compiledRefreshToken !== token) return;
+        this._compiledRefreshFrame = null;
+        this._compiledRefreshCancel = null;
+        this._compiledRefreshQueued = false;
+        if (this._compiledMap) this.redraw();
+      };
+      const useFrame = typeof globalThis.requestAnimationFrame === 'function';
+      this._compiledRefreshCancel = useFrame ? globalThis.cancelAnimationFrame : globalThis.clearTimeout;
+      this._compiledRefreshFrame = useFrame
+        ? globalThis.requestAnimationFrame(repaint) : globalThis.setTimeout(repaint, 0);
+      return this;
+    },
     _sceneAt(zoom) {
       if (!this._compiledScene || this._compiledScene.zoom !== zoom) this._compiledScene = scene(zoom);
       return this._compiledScene;
@@ -192,6 +231,10 @@ export function createCompiledLayer(L, options) {
     onAdd(map) {
       L.GridLayer.prototype.onAdd.call(this, map);
       this._compiledMap = map;
+      this._compiledRefreshFrame = null;
+      this._compiledRefreshCancel = null;
+      this._compiledRefreshQueued = false;
+      this._compiledRefreshToken = (this._compiledRefreshToken || 0) + 1;
       this._compiledScene = scene(map.getZoom());
       map.on('mousemove', this._compiledHover, this);
       map.on('mouseout', this._clearCompiledHover, this);
@@ -200,6 +243,7 @@ export function createCompiledLayer(L, options) {
       this._compiledTooltip = L.tooltip?.({ sticky: true });
     },
     onRemove(map) {
+      this._cancelCompiledRefresh();
       map.off('click', this._compiledClick, this);
       map.off('mousemove', this._compiledHover, this);
       map.off('mouseout', this._clearCompiledHover, this);
@@ -257,9 +301,11 @@ export function createCompiledLayer(L, options) {
       this._compiledTooltip.setLatLng(event.latlng).setContent(label).addTo(this._compiledMap);
     },
     refresh() {
+      this._cancelCompiledRefresh();
       this._clearCompiledHover();
       this._compiledScene = null;
-      this.redraw();
+      if (this._compiledMap) this.redraw();
+      return this;
     },
   });
 
