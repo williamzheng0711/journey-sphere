@@ -137,15 +137,20 @@ function installInstrumentation() {
   L.GridLayer.extend = function (properties) {
     const originalTile = properties.createTile;
     const requestRefresh = properties.requestRefresh;
+    const measureTile = (layer, args) => {
+      const start = performance.now();
+      const tile = originalTile.apply(layer, args);
+      const elapsed = performance.now() - start;
+      const current = phase(); current.tileCount++; current.tileCpuMs += elapsed; current.maxTileMs = Math.max(current.maxTileMs, elapsed);
+      return tile;
+    };
+    // Leaflet uses this arity to decide who marks a drawn tile ready.
+    const createTile = originalTile.length >= 2
+      ? function(coords, done) { return measureTile(this, [coords, done]); }
+      : function(coords) { return measureTile(this, [coords]); };
     return originalExtend.call(this, { ...properties,
       ...(requestRefresh ? { requestRefresh(...args) { phase().refreshRequests++; return requestRefresh.apply(this, args); } } : {}),
-      createTile(coords) {
-        const start = performance.now();
-        const tile = originalTile.call(this, coords);
-        const elapsed = performance.now() - start;
-        const current = phase(); current.tileCount++; current.tileCpuMs += elapsed; current.maxTileMs = Math.max(current.maxTileMs, elapsed);
-        return tile;
-      },
+      createTile,
     });
   };
   function frame(now) {

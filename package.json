@@ -52,7 +52,8 @@
     "build:engine": "node scripts/build-leaflet-engine.mjs",
     "check:engine": "node scripts/build-leaflet-engine.mjs --check",
     "test:embed:startup": "node scripts/test-embed-startup.mjs",
-    "test:embed:updates": "node scripts/test-embed-updates.mjs"
+    "test:embed:updates": "node scripts/test-embed-updates.mjs",
+    "test:flashing": "node scripts/test-map-flashing.mjs"
   },
   "engines": {
     "node": ">=20"

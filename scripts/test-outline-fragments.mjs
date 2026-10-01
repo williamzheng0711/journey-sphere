@@ -59,6 +59,10 @@ window.__fixtureManifest=${JSON.stringify(fixtureManifest)};window.__world=${JSO
 window.__errors=[];window.__requests=[];window.__firstPaint=null;
 const NativePath2D=window.Path2D;window.Path2D=class extends NativePath2D{constructor(d){super(d);this.__journeyPath=typeof d==='string'?d:null}};
 const originalFill=CanvasRenderingContext2D.prototype.fill;CanvasRenderingContext2D.prototype.fill=function(path,...args){if(path?.__journeyPath)(this.canvas.__journeyDrawnPaths||=new Set()).add(path.__journeyPath);return originalFill.call(this,path,...args)};
+// Bitmap copies replace visible tile pixels during an in-place refresh. Track
+// their source paths, and discard old paths whenever a canvas bitmap is reset.
+for(const property of ['width','height']){const descriptor=Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype,property);Object.defineProperty(HTMLCanvasElement.prototype,property,{...descriptor,set(value){descriptor.set.call(this,value);this.__journeyDrawnPaths=new Set()}})}
+const originalDrawImage=CanvasRenderingContext2D.prototype.drawImage;CanvasRenderingContext2D.prototype.drawImage=function(source,...args){const result=originalDrawImage.call(this,source,...args);if(this.globalCompositeOperation==='copy')this.canvas.__journeyDrawnPaths=new Set(source.__journeyDrawnPaths||[]);return result};
 const originalFetch=window.fetch;window.fetch=function(input,options){const url=String(input instanceof Request?input.url:input);if(url.includes('/data/outlines/'))window.__requests.push({url,time:performance.now(),firstPaint:window.__firstPaint});return originalFetch.call(this,input,options)};
 </script>`;
 function fixture(scenario, unselected = false) {

@@ -31,17 +31,42 @@ function makeLeaflet() {
 
 function makeCanvas() {
   const calls = [];
+  const saved = [];
+  let width = 0; let height = 0;
   const context = {
-    calls,
-    save: () => calls.push(['save']), restore: () => calls.push(['restore']),
+    calls, globalAlpha: 1, globalCompositeOperation: 'source-over',
+    save() { calls.push(['save']); saved.push({ globalAlpha: this.globalAlpha, globalCompositeOperation: this.globalCompositeOperation }); },
+    restore() { calls.push(['restore']); Object.assign(this, saved.pop()); },
     setTransform: (...args) => calls.push(['transform', ...args]), translate: (...args) => calls.push(['translate', ...args]),
-    fill: (...args) => calls.push(['fill', ...args]), stroke: path => calls.push(['stroke', path]),
+    clearRect(...args) { calls.push(['clear', ...args]); canvas.pixels = []; },
+    fill(path, rule) {
+      calls.push(['fill', path, rule]);
+      canvas.pixels.push({ kind: 'fill', d: path.d, color: this.fillStyle, alpha: this.globalAlpha });
+    },
+    stroke(path) {
+      calls.push(['stroke', path]);
+      canvas.pixels.push({ kind: 'stroke', d: path.d, color: this.strokeStyle, alpha: this.globalAlpha });
+    },
+    drawImage(source, x, y) {
+      calls.push(['drawImage', source, x, y, this.globalCompositeOperation, this.globalAlpha, source.calls.slice()]);
+      if (this.globalCompositeOperation === 'copy') canvas.pixels = source.pixels.slice();
+      else canvas.pixels.push(...source.pixels);
+    },
     isPointInPath: (...args) => { calls.push(['hit', ...args]); return true; },
   };
-  return {
-    width: 0, height: 0, style: {}, calls,
+  const canvas = {
+    style: {}, calls, pixels: [],
     getContext: () => context,
   };
+  const reset = () => {
+    canvas.pixels = []; saved.length = 0;
+    context.globalAlpha = 1; context.globalCompositeOperation = 'source-over';
+  };
+  Object.defineProperties(canvas, {
+    width: { get: () => width, set: value => { width = value; reset(); } },
+    height: { get: () => height, set: value => { height = value; reset(); } },
+  });
+  return canvas;
 }
 
 function withBrowserCanvas(callback) {
@@ -144,19 +169,257 @@ test('cached outline transitions repaint retained tiles while ordinary pans do n
   });
 });
 
-test('redraw delegates fractional zoom to normal rounded view setup and resets the wrapping grid', () => {
-  const layer = createCompiledLayer(makeLeaflet(), {
-    world: { features: [] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+test('outline-only refresh skips incomplete arrivals and coalesces a real same-viewport transition', async () => {
+  await withBrowserCanvas(async () => {
+    const originalFrame = globalThis.requestAnimationFrame;
+    const originalCancel = globalThis.cancelAnimationFrame;
+    const frames = [];
+    globalThis.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
+    globalThis.cancelAnimationFrame = () => {};
+    try {
+      const coarse = record('world', null, 'USA');
+      const fine = { ...coarse, d: 'M0 0l1 0l0 1l-1 -1z' };
+      let effective = null;
+      const map = mapMock(); map.getZoom = () => 4;
+      const layer = createCompiledLayer(makeLeaflet(), {
+        world: { features: [coarse] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+        getOutline: () => effective,
+      });
+      layer.onAdd(map); layer.createTile({ x: 0, y: 0, z: 4 });
+      const cached = layer._sceneAt(4);
+      layer.requestOutlineRefresh();
+      assert.notEqual(layer._sceneAt(4), cached, 'an arrival invalidates cached logical scene even without a view change');
+      assert.equal(layer._sceneAt(4).worldRecords[0], coarse);
+      assert.equal(frames.length, 0, 'incomplete fragments leave the same whole-country fallback and cause no repaint');
+      effective = fine;
+      layer.requestOutlineRefresh().requestOutlineRefresh();
+      assert.equal(layer._sceneAt(4).worldRecords[0], fine, 'completed detail cannot be masked by the old scene cache');
+      assert.equal(frames.length, 1, 'a real identity change schedules one repaint for the current viewport');
+      frames.shift()(); assert.equal(layer.redrawCount, 1);
+      layer.createTile({ x: 0, y: 0, z: 4 });
+      layer.requestOutlineRefresh();
+      assert.equal(frames.length, 0, 'repeated notification of the painted detail does not repaint again');
+      layer.onRemove(map);
+    } finally {
+      globalThis.requestAnimationFrame = originalFrame; globalThis.cancelAnimationFrame = originalCancel;
+    }
   });
-  const center = { lat: 13.45, lng: 864.75 };
-  layer._map = { getCenter: () => center, getZoom: () => 9.5 };
-  let removed = false; let setup;
-  layer._tileZoom = 10;
-  layer._removeAllTiles = () => { removed = true; };
-  layer._setView = (position, zoom) => { setup = { position, zoom, oldTileZoom: layer._tileZoom }; };
-  assert.equal(layer.redraw(), layer);
-  assert.equal(removed, true);
-  assert.deepEqual(setup, { position: center, zoom: 9.5, oldTileZoom: undefined });
+});
+
+test('synchronous tile batches become ready after attachment without a duplicate native frame callback', async () => {
+  await withBrowserCanvas(async () => {
+    const L = makeLeaflet();
+    const events = [];
+    const frames = [];
+    const parent = {};
+    let pending = [{ x: 8193, y: 2, z: 10 }, { x: 8194, y: 2, z: 10 }];
+    let baseCalls = 0;
+    L.GridLayer.prototype._update = function (center) {
+      baseCalls++;
+      assert.deepEqual(center, { lat: 20, lng: 740 });
+      const batch = pending; pending = [];
+      if (batch.length) events.push('loading');
+      const generated = batch.map(coords => {
+        const wrapped = { ...coords, x: coords.x % (2 ** coords.z) };
+        const tile = this.createTile(wrapped, () => events.push('unexpected done callback'));
+        tile.className = 'leaflet-tile';
+        const entry = { el: tile, coords, current: true };
+        this._tiles[this._tileCoordsToKey(coords)] = entry;
+        if (this.createTile.length < 2) frames.push(() => this._tileReady(coords, null, tile));
+        events.push(`tileloadstart:${coords.x}`);
+        return entry;
+      });
+      for (const entry of generated) entry.el.parentNode = parent;
+    };
+    const layer = createCompiledLayer(L, {
+      world: { features: [record('world', null)] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+    });
+    const map = mapMock(); map.getZoom = () => 9.5;
+    layer.onAdd(map); layer._map = map;
+    layer._tileCoordsToKey = coords => `${coords.x}:${coords.y}:${coords.z}`;
+    const retained = layer.createTile({ x: 0, y: 0, z: 9 });
+    retained.className = 'leaflet-tile leaflet-tile-loaded'; retained.parentNode = parent;
+    layer._tiles = { '0:0:9': { el: retained, coords: { x: 0, y: 0, z: 9 }, current: false, loaded: 1, active: true } };
+    layer._tileReady = function (coords, error, tile) {
+      assert.equal(error, null);
+      assert.equal(Object.keys(this._tiles).length, 3, 'the whole generated batch is cached before readiness');
+      assert.ok(Object.values(this._tiles).every(entry => entry.el.parentNode === parent), 'the whole batch is attached before tileload');
+      const entry = this._tiles[this._tileCoordsToKey(coords)];
+      assert.equal(entry.el, tile);
+      assert.ok(tile.pixels.length, 'only already painted canvases become ready');
+      entry.loaded = 2; entry.active = true; tile.className += ' leaflet-tile-loaded';
+      events.push(`tileload:${coords.x}`);
+      if (Object.values(this._tiles).every(value => value.loaded)) events.push('load');
+    };
+    assert.equal(layer.createTile.length, 2, 'the native engine must use its callback protocol rather than schedule a readiness frame');
+    layer._update({ lat: 20, lng: 740 });
+    assert.deepEqual(events, ['loading', 'tileloadstart:8193', 'tileloadstart:8194', 'tileload:8193', 'tileload:8194', 'load']);
+    assert.equal(frames.length, 0, 'native _addTile has no deferred readiness callback to duplicate tileload');
+    assert.ok(Object.values(layer._tiles).every(entry => entry.el.className.includes('leaflet-tile-loaded')),
+      'all rendered canvases have visible CSS before _update returns');
+    layer._update({ lat: 20, lng: 740 });
+    assert.equal(baseCalls, 2);
+    assert.equal(events.length, 6, 'loaded retained and current tiles do not fire readiness a second time');
+    layer.onRemove(map);
+  });
+});
+
+test('tile-ready flushing ignores foreign canvases and entries replaced by a reentrant tileload handler', async () => {
+  await withBrowserCanvas(async () => {
+    const L = makeLeaflet();
+    L.GridLayer.prototype._update = function () {};
+    const layer = createCompiledLayer(L, {
+      world: { features: [record('world', null)] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+    });
+    const map = mapMock(); layer.onAdd(map); layer._map = map;
+    layer._tileCoordsToKey = coords => `${coords.x}:${coords.y}:${coords.z}`;
+    const first = { el: layer.createTile({ x: 0, y: 0, z: 0 }), coords: { x: 0, y: 0, z: 0 }, current: true };
+    const stale = { el: layer.createTile({ x: 1, y: 0, z: 0 }), coords: { x: 1, y: 0, z: 0 }, current: true };
+    const foreign = { el: makeCanvas(), coords: { x: 2, y: 0, z: 0 }, current: true };
+    layer._tiles = { '0:0:0': first, '1:0:0': stale, '2:0:0': foreign };
+    const calls = [];
+    let replacement;
+    layer._tileReady = function (coords, _error, tile) {
+      calls.push(tile);
+      this._tiles[this._tileCoordsToKey(coords)].loaded = 1;
+      if (tile === first.el) {
+        replacement = { el: this.createTile({ x: 1, y: 0, z: 0 }), coords: stale.coords, current: true };
+        this._tiles['1:0:0'] = replacement;
+        this._update();
+      }
+    };
+    layer._update();
+    assert.deepEqual(calls, [first.el, replacement.el], 'the reentrant current entry becomes ready once, while the outer stale snapshot is skipped');
+    assert.equal(stale.loaded, undefined); assert.equal(foreign.loaded, undefined);
+    layer._update(); assert.equal(calls.length, 2, 'unowned canvases remain outside the readiness protocol');
+    layer.onRemove(map);
+  });
+});
+
+test('tile-ready flushing stops when a tileload handler removes the map', async () => {
+  await withBrowserCanvas(async () => {
+    const L = makeLeaflet(); L.GridLayer.prototype._update = function () {};
+    const layer = createCompiledLayer(L, {
+      world: { features: [record('world', null)] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+    });
+    const map = mapMock(); layer.onAdd(map); layer._map = map;
+    layer._tileCoordsToKey = coords => `${coords.x}:${coords.y}:${coords.z}`;
+    const first = { el: layer.createTile({ x: 0, y: 0, z: 0 }), coords: { x: 0, y: 0, z: 0 }, current: true };
+    const later = { el: layer.createTile({ x: 1, y: 0, z: 0 }), coords: { x: 1, y: 0, z: 0 }, current: true };
+    layer._tiles = { '0:0:0': first, '1:0:0': later };
+    const calls = [];
+    layer._tileReady = function (_coords, _error, tile) {
+      calls.push(tile); first.loaded = 1;
+      this.onRemove(map); this._map = null;
+    };
+    assert.doesNotThrow(() => layer._update());
+    assert.deepEqual(calls, [first.el]);
+    assert.equal(later.loaded, undefined, 'no readiness callback can run after map removal');
+  });
+});
+
+test('redraw repaints retained wrapped levels without replacing loaded canvases or native grid state', async () => {
+  await withBrowserCanvas(async canvases => {
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [record('world', null)] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+    });
+    const map = mapMock(); map.getZoom = () => 9.5;
+    layer.onAdd(map); layer._map = map;
+    const first = layer.createTile({ x: 3, y: 4, z: 9 });
+    const second = layer.createTile({ x: 7, y: 8, z: 10 });
+    const parent = {};
+    for (const tile of [first, second]) {
+      tile.className = 'leaflet-tile leaflet-tile-loaded';
+      tile.parentNode = parent; tile.style.transform = 'translate3d(17px, 23px, 0)';
+    }
+    const old = { el: first, coords: { x: 1539, y: 4, z: 9 }, loaded: 11, active: true, current: false, retain: true };
+    const current = { el: second, coords: { x: 3079, y: 8, z: 10 }, loaded: 12, active: true, current: true, retain: true };
+    layer._tiles = { old, current }; layer._tileZoom = 10;
+    const wrap = layer._wrapX = [0, 1024];
+    const range = layer._globalTileRange = { marker: 'native grid' };
+    const levels = layer._levels = { 9: { el: parent }, 10: { el: parent } };
+    for (const method of ['_wrapCoords', '_removeAllTiles', '_setView', '_resetGrid', '_tileReady']) {
+      layer[method] = () => { throw new Error(`${method} must not run during an in-place repaint`); };
+    }
+    assert.equal(layer.redraw(), layer);
+    assert.equal(layer._tiles.old, old); assert.equal(layer._tiles.current, current);
+    assert.deepEqual([old.loaded, old.active, old.current, old.retain], [11, true, false, true]);
+    assert.deepEqual([current.loaded, current.active, current.current, current.retain], [12, true, true, true]);
+    assert.equal(layer._tileZoom, 10); assert.equal(layer._wrapX, wrap);
+    assert.equal(layer._globalTileRange, range); assert.equal(layer._levels, levels);
+    for (const tile of [first, second]) {
+      assert.equal(tile.className, 'leaflet-tile leaflet-tile-loaded');
+      assert.equal(tile.parentNode, parent); assert.equal(tile.style.transform, 'translate3d(17px, 23px, 0)');
+      const copy = tile.calls.findLast(call => call[0] === 'drawImage');
+      assert.equal(copy[4], 'copy'); assert.equal(copy[5], 1);
+      const transform = copy[6].findLast(call => call[0] === 'transform');
+      const coords = tile === first ? { x: 3, y: 4, z: 9 } : { x: 7, y: 8, z: 10 };
+      assert.deepEqual(transform, ['transform', 2 ** coords.z * 256 / (2 ** 24), 0, 0,
+        2 ** coords.z * 256 / (2 ** 24), -coords.x * 256, -coords.y * 256],
+      'saved wrapped coordinates retain their own zoom scale and repeated-world position');
+    }
+    assert.equal(canvases.length, 3, 'one detached scratch canvas serves every retained tile');
+    const scratch = layer._compiledRepaintCanvas;
+    layer.redraw(); assert.equal(layer._compiledRepaintCanvas, scratch); assert.equal(canvases.length, 3);
+    layer.onRemove(map);
+    assert.equal(layer._compiledRepaintCanvas, null, 'removing the layer releases its detached repaint buffer');
+  });
+});
+
+test('in-place repaint copies transparent pixels when a selected visit is cleared', async () => {
+  await withBrowserCanvas(async () => {
+    const selected = record('AA:1', 'parent');
+    let visited = [selected.id];
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [record('world', null)] }, extent: 2 ** 24,
+      getCountries: () => [{ features: [selected] }], getVisited: () => visited,
+      colorFor: () => '#123456',
+    });
+    const map = mapMock(); layer.onAdd(map); layer._map = map;
+    const tile = layer.createTile({ x: 0, y: 0, z: 0 });
+    layer._tiles = { tile: { el: tile, coords: { x: 0, y: 0, z: 0 }, loaded: 1, active: true, current: true } };
+    assert.ok(tile.pixels.some(pixel => pixel.kind === 'fill' && pixel.color === '#123456'));
+    visited = []; layer.refresh();
+    assert.equal(tile.pixels.some(pixel => pixel.kind === 'fill' && pixel.color === '#123456'), false,
+      'the old visit fill must be overwritten rather than composed under the new transparent tile');
+    assert.ok(tile.pixels.some(pixel => pixel.kind === 'fill' && pixel.color === '#f8fafc'));
+    const copy = tile.calls.findLast(call => call[0] === 'drawImage');
+    assert.equal(copy[4], 'copy'); assert.equal(copy[5], 1);
+    assert.equal(tile.getContext('2d').globalCompositeOperation, 'source-over', 'copy state does not leak to later painting');
+    layer.onRemove(map);
+  });
+});
+
+test('failed scratch repaint preserves the attached canvas content and later valid detail recovers', async () => {
+  await withBrowserCanvas(async () => {
+    const OriginalPath = globalThis.Path2D;
+    globalThis.Path2D = class extends OriginalPath {
+      constructor(d) { if (d === 'MFAIL') throw new Error('invalid outline path'); super(d); }
+    };
+    const coarse = record('world', null, 'USA');
+    let outline = null;
+    const errors = [];
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [coarse] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+      getOutline: () => outline, onError: error => errors.push(error),
+    });
+    const map = mapMock(); layer.onAdd(map); layer._map = map;
+    const tile = layer.createTile({ x: 0, y: 0, z: 0 });
+    const content = tile.pixels.slice();
+    const state = { el: tile, coords: { x: 0, y: 0, z: 0 }, loaded: 1, active: true, current: true };
+    layer._tiles = { tile: state };
+    outline = { ...coarse, d: 'MFAIL' };
+    assert.doesNotThrow(() => layer.refresh());
+    assert.deepEqual(tile.pixels, content, 'failed detached drawing must never clear the visible canvas');
+    assert.equal(tile.calls.filter(call => call[0] === 'drawImage').length, 0);
+    assert.equal(layer._tiles.tile, state); assert.equal(errors.length, 1); assert.match(errors[0].message, /invalid outline path/);
+    outline = { ...coarse, d: 'M0 0l16777215 0l0 16777215z' };
+    layer.refresh();
+    assert.ok(tile.pixels.some(pixel => pixel.d === outline.d));
+    assert.equal(tile.pixels.some(pixel => pixel.d === coarse.d), false);
+    assert.equal(errors.length, 1); assert.equal(tile.calls.filter(call => call[0] === 'drawImage').length, 1);
+    layer.onRemove(map);
+  });
 });
 
 test('compiled layer draws world, active outlines, selected regions, and selected siblings', async () => {

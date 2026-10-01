@@ -177,10 +177,10 @@ function instrument() {
       if (coarse && api.getVisited().some(id => id.startsWith('CHN:'))) {
         const watchRefinement = () => {
           if (!api.map._loaded) return;
-          // requestRefresh clears the cached scene; createTile recreates it
-          // while drawing. Its changed path therefore represents drawn tiles,
-          // rather than merely a completed network request or parsed payload.
-          const rendered = layer._compiledScene?.worldRecords?.find(record => record.countryCode === 'CHN');
+          // Compare painted records rather than a logical scene that an outline
+          // callback can recompute before the queued bitmap update completes.
+          const rendered = (layer._compiledPaintedWorld || layer._compiledScene?.worldRecords)
+            ?.find(record => record.countryCode === 'CHN');
           if (rendered && rendered.d !== coarse.d) {
             requestAnimationFrame(() => { window.__centerCountryRefinedAt = performance.now(); });
           } else requestAnimationFrame(watchRefinement);

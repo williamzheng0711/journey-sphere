@@ -483,7 +483,7 @@ export async function createCompiledJourneySphere(container, options = {}) {
       if (destroyed) return;
       outlineDetail = createOutlineDetail({
         map, manifest, dataUrl: options.dataUrl || DEFAULT_DATA_URL, signal: requests.signal,
-        onChange: () => { if (!destroyed) layer?.requestRefresh(); }, onError: emitOutlineError,
+        onChange: () => { if (!destroyed) layer?.requestOutlineRefresh(); }, onError: emitOutlineError,
       });
       outlineDetail.load().catch(emitOutlineError);
       return outlineDetail;

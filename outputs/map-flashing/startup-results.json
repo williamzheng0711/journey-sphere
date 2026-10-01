@@ -1,0 +1,60 @@
+{
+  "passed": true,
+  "baselineRef": "3503a3c77c684dcd9305f7f889b1044ed97a11d5",
+  "samplesPerVariant": 3,
+  "network": {
+    "latencyMs": 150,
+    "downstreamBitsPerSecond": 1600000,
+    "cache": "disabled",
+    "transport": "preloaded gzip, HTTP/1.1 on localhost",
+    "cpuThrottle": 1
+  },
+  "runtimeSha256": {
+    "src/compiled-layer.js": "87c06f8b0cb960195011f872e9bc27f752cce3828a8e84e13578cbab0488d2c5",
+    "src/compiled.js": "6f21106444c2b8aa74534ae334432321e419db22ea2405acf9e759bca525957c"
+  },
+  "performance": [
+    {
+      "key": "embed-desktop",
+      "baselineMedianMs": 2026.6000000014901,
+      "currentMedianMs": 2029.3000000044703,
+      "differenceMs": 2.7000000029802322,
+      "differencePercent": 0.1332280668596697,
+      "baselineMedianMapBytes": 282094,
+      "currentMedianMapBytes": 282643,
+      "coldFirstMapSamplesMs": {
+        "baseline": [
+          2026.3000000044703,
+          2026.6000000014901,
+          2028.7999999970198
+        ],
+        "current": [
+          2029.3000000044703,
+          2033.3999999985099,
+          2024
+        ]
+      }
+    },
+    {
+      "key": "embed-mobile",
+      "baselineMedianMs": 2026.7999999970198,
+      "currentMedianMs": 2031.5,
+      "differenceMs": 4.700000002980232,
+      "differencePercent": 0.231892638789577,
+      "baselineMedianMapBytes": 282094,
+      "currentMedianMapBytes": 282643,
+      "coldFirstMapSamplesMs": {
+        "baseline": [
+          2025.7999999970198,
+          2026.7999999970198,
+          2033.3999999985099
+        ],
+        "current": [
+          2030,
+          2031.5,
+          2033.3999999985099
+        ]
+      }
+    }
+  ]
+}

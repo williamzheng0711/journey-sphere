@@ -1,0 +1,323 @@
+{
+  "ok": true,
+  "baselineRef": "3503a3c77c684dcd9305f7f889b1044ed97a11d5",
+  "checks": [
+    {
+      "variant": "baseline",
+      "scenario": "desktop",
+      "phases": {
+        "settled": {
+          "sampledFrames": 5,
+          "blankFrames": 0,
+          "minimumCoverage": 1
+        },
+        "staggered-outlines": {
+          "sampledFrames": 45,
+          "blankFrames": 5,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "real-click": {
+          "sampledFrames": 4,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "reset": {
+          "sampledFrames": 3,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "cached-below-detail-threshold": {
+          "sampledFrames": 33,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "cached-above-detail-threshold": {
+          "sampledFrames": 31,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "instant-normal-view": {
+          "sampledFrames": 6,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "instant-fractional-view": {
+          "sampledFrames": 4,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "normal-zoom": {
+          "sampledFrames": 34,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999904632568,
+          "minimumLandPixelAlpha": 111
+        },
+        "fractional-zoom": {
+          "sampledFrames": 34,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999936421712,
+          "minimumLandPixelAlpha": 232
+        },
+        "wrapped-view": {
+          "sampledFrames": 4,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "wrapped-refresh": {
+          "sampledFrames": 51,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        }
+      },
+      "redraws": 10,
+      "retainedLoadedTileIdentity": false,
+      "outlineRequestsReleased": [
+        "data/outlines/CHN.json",
+        "data/outlines/overview/KOR.json",
+        "data/outlines/overview/TWN.json",
+        "data/outlines/JPN.json",
+        "data/outlines/overview/PRK.json"
+      ],
+      "fadeAnimated": false,
+      "finalPixel": {
+        "alpha": 252,
+        "selected": true
+      },
+      "errors": []
+    },
+    {
+      "variant": "current",
+      "scenario": "desktop",
+      "phases": {
+        "settled": {
+          "sampledFrames": 5,
+          "blankFrames": 0,
+          "minimumCoverage": 1
+        },
+        "staggered-outlines": {
+          "sampledFrames": 47,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 235
+        },
+        "real-click": {
+          "sampledFrames": 4,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 214
+        },
+        "reset": {
+          "sampledFrames": 3,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 235
+        },
+        "cached-below-detail-threshold": {
+          "sampledFrames": 31,
+          "blankFrames": 0,
+          "minimumCoverage": 0.755081164042155,
+          "minimumLandPixelAlpha": 235
+        },
+        "cached-above-detail-threshold": {
+          "sampledFrames": 30,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999904632568,
+          "minimumLandPixelAlpha": 235
+        },
+        "instant-normal-view": {
+          "sampledFrames": 6,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 232
+        },
+        "instant-fractional-view": {
+          "sampledFrames": 4,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 252
+        },
+        "normal-zoom": {
+          "sampledFrames": 33,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999904632568,
+          "minimumLandPixelAlpha": 111
+        },
+        "fractional-zoom": {
+          "sampledFrames": 34,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999904632568,
+          "minimumLandPixelAlpha": 232
+        },
+        "wrapped-view": {
+          "sampledFrames": 4,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 252
+        },
+        "wrapped-refresh": {
+          "sampledFrames": 6,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 252
+        }
+      },
+      "redraws": 10,
+      "retainedLoadedTileIdentity": true,
+      "outlineRequestsReleased": [
+        "data/outlines/CHN.json",
+        "data/outlines/overview/KOR.json",
+        "data/outlines/overview/TWN.json",
+        "data/outlines/JPN.json",
+        "data/outlines/overview/PRK.json"
+      ],
+      "fadeAnimated": false,
+      "finalPixel": {
+        "alpha": 252,
+        "selected": true
+      },
+      "errors": []
+    },
+    {
+      "variant": "current",
+      "scenario": "mobile",
+      "phases": {
+        "settled": {
+          "sampledFrames": 3,
+          "blankFrames": 0,
+          "minimumCoverage": 1
+        },
+        "staggered-outlines": {
+          "sampledFrames": 46,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 236
+        },
+        "real-click": {
+          "sampledFrames": 5,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 211
+        },
+        "reset": {
+          "sampledFrames": 3,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 249
+        },
+        "cached-below-detail-threshold": {
+          "sampledFrames": 32,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999804374499,
+          "minimumLandPixelAlpha": 182
+        },
+        "cached-above-detail-threshold": {
+          "sampledFrames": 30,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999608748998,
+          "minimumLandPixelAlpha": 182
+        },
+        "instant-normal-view": {
+          "sampledFrames": 6,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 242
+        },
+        "instant-fractional-view": {
+          "sampledFrames": 5,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 239
+        },
+        "normal-zoom": {
+          "sampledFrames": 33,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999518353332,
+          "minimumLandPixelAlpha": 214
+        },
+        "fractional-zoom": {
+          "sampledFrames": 33,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999954802166,
+          "minimumLandPixelAlpha": 232
+        },
+        "wrapped-view": {
+          "sampledFrames": 4,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 239
+        },
+        "wrapped-refresh": {
+          "sampledFrames": 5,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 239
+        }
+      },
+      "redraws": 10,
+      "retainedLoadedTileIdentity": true,
+      "outlineRequestsReleased": [
+        "data/outlines/CHN.json",
+        "data/outlines/overview/KOR.json",
+        "data/outlines/overview/TWN.json",
+        "data/outlines/JPN.json",
+        "data/outlines/overview/PRK.json"
+      ],
+      "fadeAnimated": false,
+      "finalPixel": {
+        "alpha": 239,
+        "selected": true
+      },
+      "errors": []
+    },
+    {
+      "variant": "current",
+      "scenario": "wrapped-world",
+      "phases": {
+        "settled": {
+          "sampledFrames": 3,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999984105428
+        },
+        "staggered-outlines": {
+          "sampledFrames": 10,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999984105428,
+          "minimumLandPixelAlpha": 0
+        },
+        "wrapped-refresh": {
+          "sampledFrames": 3,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999984105428,
+          "minimumLandPixelAlpha": 214
+        },
+        "fractional-zoom": {
+          "sampledFrames": 2,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999904632568,
+          "minimumLandPixelAlpha": 214
+        }
+      },
+      "redraws": 2,
+      "retainedLoadedTileIdentity": true,
+      "outlineRequestsReleased": [
+        "data/outlines/fragments/USA/3.json"
+      ],
+      "fadeAnimated": false,
+      "finalPixel": {
+        "alpha": 214,
+        "selected": false
+      },
+      "errors": []
+    }
+  ],
+  "pageErrors": []
+}

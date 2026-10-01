@@ -92,6 +92,9 @@ out of first display and panning, while country outline refinement remains activ
 Live place updates retain the working map until new data has been validated;
 view-only updates preserve interactive edits. See [the embed guide](docs/embed.md)
 for update, retry and reset behavior.
+Map repainting also preserves visible tiles, including during coastline updates,
+clicks, reset and instant view changes. [Frame-by-frame browser checks](outputs/map-flashing/report.md)
+compare the previous flashing release with the corrected renderer.
 
 Compiled maps also provide `journey.setView(center, zoom)` to update their view
 and reset target without changing visits. For preloaded partial geometry, call

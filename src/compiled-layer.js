@@ -20,6 +20,7 @@ export function createCompiledLayer(L, options) {
   let paths = new WeakMap();
   let strokePaths = new WeakMap();
   let replacements = new WeakMap();
+  let tileCoords = new WeakMap();
   const replaceable = new Set(outlineRegionIds);
   const detailedRecord = (record, zoom) => {
     const outline = getOutline(record.countryCode, zoom);
@@ -139,18 +140,58 @@ export function createCompiledLayer(L, options) {
   }
 
   const Layer = L.GridLayer.extend({
+    _update(center) {
+      L.GridLayer.prototype._update.call(this, center);
+      // Canvas pixels are drawn synchronously. Wait until Leaflet registers and
+      // attaches the whole batch, then expose it in this turn instead of leaving
+      // hard view changes empty until its usual next-frame readiness callback.
+      for (const tile of Object.values(this._tiles || {})) {
+        if (!this._map) break;
+        const key = this._tileCoordsToKey(tile.coords);
+        if (this._tiles[key] !== tile || tile.loaded || !tileCoords.has(tile.el)) continue;
+        this._tileReady(tile.coords, null, tile.el);
+      }
+    },
     redraw() {
+      const previous = this._compiledPaintedWorld;
       this._compiledPaintedWorld = null;
       this._compiledMixedOutlines = false;
-      if (!this._map || typeof this._setView !== 'function' || typeof this._removeAllTiles !== 'function') {
+      if (!this._map || !this._tiles) {
         return L.GridLayer.prototype.redraw.call(this);
       }
-      // Leaflet's inherited redraw uses the fractional map zoom as tile zoom
-      // without resetting the integer wrapping grid. Let its normal view setup
-      // round the level and rebuild that grid, including repeated world copies.
-      this._removeAllTiles();
-      this._tileZoom = undefined;
-      this._setView(this._map.getCenter(), this._map.getZoom());
+      // Replacing loaded tiles hides the entire map until Leaflet marks the new
+      // tiles ready on its next frame. Repaint their pixels without changing
+      // their visibility, native zoom levels, wrapping grid or DOM ownership.
+      try {
+        const scratch = this._compiledRepaintCanvas || (this._compiledRepaintCanvas = document.createElement('canvas'));
+        for (const { el: tile } of Object.values(this._tiles)) {
+          const coords = tileCoords.get(tile);
+          if (!coords) continue;
+          // Retained parent/child levels must use their original wrapped coords;
+          // Leaflet's current _wrapCoords grid belongs to the newest tile level.
+          this._drawCompiledTile(scratch, coords);
+          if (tile.width !== scratch.width) tile.width = scratch.width;
+          if (tile.height !== scratch.height) tile.height = scratch.height;
+          const context = tileContext(tile);
+          context.save();
+          try {
+            context.setTransform(1, 0, 0, 1, 0, 0);
+            context.globalAlpha = 1;
+            context.globalCompositeOperation = 'copy';
+            context.drawImage(scratch, 0, 0);
+          } finally { context.restore(); }
+        }
+      } catch (error) {
+        // A failed paint keeps the visible bitmap and can be retried later.
+        this._compiledPaintedWorld = previous;
+        this._compiledMixedOutlines = true;
+        reportError(error);
+      }
+      return this;
+    },
+    requestOutlineRefresh() {
+      this._compiledScene = null;
+      this._refreshCompiledView();
       return this;
     },
     _refreshCompiledView() {
@@ -200,63 +241,66 @@ export function createCompiledLayer(L, options) {
       }
       return this._compiledScene;
     },
-    createTile(coords) {
-      let tile;
+    createTile(coords, _done) {
+      const tile = document.createElement('canvas');
       try {
-        const size = this.getTileSize();
-        if (!size?.x || !size?.y) throw new Error('Compiled renderer received an invalid tile size.');
-        const ratio = globalThis.devicePixelRatio || 1;
-        tile = document.createElement('canvas');
-        tile.width = Math.round(size.x * ratio);
-        tile.height = Math.round(size.y * ratio);
-        tile.style.width = `${size.x}px`;
-        tile.style.height = `${size.y}px`;
-        const context = tileContext(tile);
-        const zoom = this._compiledMap?.getZoom() ?? this._map?.getZoom() ?? coords.z;
-        const state = this._sceneAt(zoom);
-        if (!this._compiledPaintedWorld) this._compiledPaintedWorld = state.worldRecords;
-        else if (state.worldRecords.some((record, index) => record !== this._compiledPaintedWorld[index])) this._compiledMixedOutlines = true;
-        const countryRecords = state.visibleRegions;
-        const adminRecords = state.adminRecords;
-        const activeWorld = feature => state.activeCountries.has(feature.countryCode);
-        // Neighboring fills must finish before shared boundary strokes.
-        for (const feature of state.worldRecords) {
-          drawRecord(context, feature, coords, coords.z, size, ratio, {
-            fill: '#f8fafc', fillOpacity: 0.84, stroke: false,
-          });
-        }
-        for (const feature of state.worldRecords) {
-          drawRecord(context, feature, coords, coords.z, size, ratio, {
-            color: activeWorld(feature) ? '#8795a6' : zoom >= 6 ? '#acb8c5' : '#c1cbd5',
-            weight: activeWorld(feature) ? (zoom >= 6 ? 0.95 : 0.8) : (zoom >= 6 ? 0.65 : 0.45),
-          });
-        }
-        for (const feature of countryRecords) {
-          if (!state.selected(feature)) continue;
-          drawRecord(context, feature, coords, coords.z, size, ratio, {
-            fill: colorFor?.(feature.countryCode) || '#64748b', fillOpacity, stroke: false,
-          });
-        }
-        for (const feature of adminRecords) {
-          if (!state.activeCountries.has(feature.countryCode)) continue;
-          const activeParent = state.activeParents.has(parentKey(feature));
-          drawRecord(context, feature, coords, coords.z, size, ratio, {
-            color: '#8795a6', weight: activeParent ? 0.8 : 0.55, opacity: activeParent ? 0.75 : 0.4, stroke: true,
-          });
-        }
-        for (const feature of countryRecords) {
-          const isSelected = state.selected(feature);
-          drawRecord(context, feature, coords, coords.z, size, ratio, {
-            color: isSelected ? colorFor?.(feature.countryCode) || '#64748b' : '#9aa8b7',
-            weight: isSelected ? (zoom >= 6 ? 1.15 : 1.05) : 0.55,
-            opacity: isSelected ? 0.88 : 0.65,
-          });
-        }
+        this._drawCompiledTile(tile, coords);
+        tileCoords.set(tile, { x: coords.x, y: coords.y, z: coords.z });
       } catch (error) {
         reportError(error);
         throw error;
       }
       return tile;
+    },
+    _drawCompiledTile(tile, coords) {
+      const size = this.getTileSize();
+      if (!size?.x || !size?.y) throw new Error('Compiled renderer received an invalid tile size.');
+      const ratio = globalThis.devicePixelRatio || 1;
+      tile.width = Math.round(size.x * ratio);
+      tile.height = Math.round(size.y * ratio);
+      tile.style.width = `${size.x}px`;
+      tile.style.height = `${size.y}px`;
+      const context = tileContext(tile);
+      const zoom = this._compiledMap?.getZoom() ?? this._map?.getZoom() ?? coords.z;
+      const state = this._sceneAt(zoom);
+      const countryRecords = state.visibleRegions;
+      const adminRecords = state.adminRecords;
+      const activeWorld = feature => state.activeCountries.has(feature.countryCode);
+      // Neighboring fills must finish before shared boundary strokes.
+      for (const feature of state.worldRecords) {
+        drawRecord(context, feature, coords, coords.z, size, ratio, {
+          fill: '#f8fafc', fillOpacity: 0.84, stroke: false,
+        });
+      }
+      for (const feature of state.worldRecords) {
+        drawRecord(context, feature, coords, coords.z, size, ratio, {
+          color: activeWorld(feature) ? '#8795a6' : zoom >= 6 ? '#acb8c5' : '#c1cbd5',
+          weight: activeWorld(feature) ? (zoom >= 6 ? 0.95 : 0.8) : (zoom >= 6 ? 0.65 : 0.45),
+        });
+      }
+      for (const feature of countryRecords) {
+        if (!state.selected(feature)) continue;
+        drawRecord(context, feature, coords, coords.z, size, ratio, {
+          fill: colorFor?.(feature.countryCode) || '#64748b', fillOpacity, stroke: false,
+        });
+      }
+      for (const feature of adminRecords) {
+        if (!state.activeCountries.has(feature.countryCode)) continue;
+        const activeParent = state.activeParents.has(parentKey(feature));
+        drawRecord(context, feature, coords, coords.z, size, ratio, {
+          color: '#8795a6', weight: activeParent ? 0.8 : 0.55, opacity: activeParent ? 0.75 : 0.4, stroke: true,
+        });
+      }
+      for (const feature of countryRecords) {
+        const isSelected = state.selected(feature);
+        drawRecord(context, feature, coords, coords.z, size, ratio, {
+          color: isSelected ? colorFor?.(feature.countryCode) || '#64748b' : '#9aa8b7',
+          weight: isSelected ? (zoom >= 6 ? 1.15 : 1.05) : 0.55,
+          opacity: isSelected ? 0.88 : 0.65,
+        });
+      }
+      if (!this._compiledPaintedWorld) this._compiledPaintedWorld = state.worldRecords;
+      else if (state.worldRecords.some((record, index) => record !== this._compiledPaintedWorld[index])) this._compiledMixedOutlines = true;
     },
     onAdd(map) {
       L.GridLayer.prototype.onAdd.call(this, map);
@@ -291,11 +335,13 @@ export function createCompiledLayer(L, options) {
       this._compiledMixedOutlines = false;
       this._compiledHitCanvas = null;
       this._compiledHitContext = null;
+      this._compiledRepaintCanvas = null;
       this._compiledTooltip = null;
       this._compiledLabel = null;
       paths = new WeakMap();
       strokePaths = new WeakMap();
       replacements = new WeakMap();
+      tileCoords = new WeakMap();
       L.GridLayer.prototype.onRemove.call(this, map);
     },
     _clearCompiledHover() {
