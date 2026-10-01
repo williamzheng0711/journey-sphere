@@ -1,30 +1,110 @@
 {
   "ok": true,
   "baselineRef": "3503a3c77c684dcd9305f7f889b1044ed97a11d5",
+  "compositorChecks": [
+    {
+      "variant": "baseline",
+      "scenario": "fixed-state-compositor",
+      "viewport": [
+        1200,
+        800
+      ],
+      "deviceScaleFactor": 2,
+      "redrawCycles": 60,
+      "targetRedrawDurationMs": 3000,
+      "actualRedrawDurationMs": 2952.39999999851,
+      "idleBeforeMs": 500,
+      "idleAfterMs": 500,
+      "capturedFrames": 83,
+      "framesByPhase": {
+        "idle-before": 1,
+        "redraw": 80,
+        "idle-after": 2
+      },
+      "captureSpanMs": 3503.290891647339,
+      "screenshotSize": [
+        1200,
+        800
+      ],
+      "uniquePixelImages": 4,
+      "blankFrames": 41,
+      "maximumChangedPixels": 433347,
+      "maximumChannelDifference": 230,
+      "canvasReadbacksDuringCapture": 0,
+      "errors": [],
+      "backend": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5, Version 27.0.1 (Build 26A434))",
+        "vendor": "Google Inc. (Apple)",
+        "features": {
+          "2d_canvas": "enabled",
+          "gpu_compositing": "enabled"
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "scenario": "fixed-state-compositor",
+      "viewport": [
+        1200,
+        800
+      ],
+      "deviceScaleFactor": 2,
+      "redrawCycles": 60,
+      "targetRedrawDurationMs": 3000,
+      "actualRedrawDurationMs": 2967.2999999970198,
+      "idleBeforeMs": 500,
+      "idleAfterMs": 500,
+      "capturedFrames": 61,
+      "framesByPhase": {
+        "idle-before": 1,
+        "redraw": 59,
+        "idle-after": 1
+      },
+      "captureSpanMs": 3496.928930282593,
+      "screenshotSize": [
+        1200,
+        800
+      ],
+      "uniquePixelImages": 1,
+      "blankFrames": 0,
+      "maximumChangedPixels": 0,
+      "maximumChannelDifference": 0,
+      "canvasReadbacksDuringCapture": 0,
+      "errors": [],
+      "backend": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5, Version 27.0.1 (Build 26A434))",
+        "vendor": "Google Inc. (Apple)",
+        "features": {
+          "2d_canvas": "enabled",
+          "gpu_compositing": "enabled"
+        }
+      }
+    }
+  ],
   "checks": [
     {
       "variant": "baseline",
       "scenario": "desktop",
       "phases": {
         "settled": {
-          "sampledFrames": 5,
+          "sampledFrames": 4,
           "blankFrames": 0,
           "minimumCoverage": 1
         },
         "staggered-outlines": {
-          "sampledFrames": 45,
+          "sampledFrames": 46,
           "blankFrames": 5,
           "minimumCoverage": 0,
           "minimumLandPixelAlpha": 0
         },
         "real-click": {
-          "sampledFrames": 4,
+          "sampledFrames": 5,
           "blankFrames": 1,
           "minimumCoverage": 0,
           "minimumLandPixelAlpha": 0
         },
         "reset": {
-          "sampledFrames": 3,
+          "sampledFrames": 2,
           "blankFrames": 1,
           "minimumCoverage": 0,
           "minimumLandPixelAlpha": 0
@@ -42,13 +122,13 @@
           "minimumLandPixelAlpha": 0
         },
         "instant-normal-view": {
-          "sampledFrames": 6,
+          "sampledFrames": 7,
           "blankFrames": 1,
           "minimumCoverage": 0,
           "minimumLandPixelAlpha": 0
         },
         "instant-fractional-view": {
-          "sampledFrames": 4,
+          "sampledFrames": 6,
           "blankFrames": 1,
           "minimumCoverage": 0,
           "minimumLandPixelAlpha": 0
@@ -57,22 +137,22 @@
           "sampledFrames": 34,
           "blankFrames": 0,
           "minimumCoverage": 0.9999999904632568,
-          "minimumLandPixelAlpha": 111
+          "minimumLandPixelAlpha": 64
         },
         "fractional-zoom": {
           "sampledFrames": 34,
           "blankFrames": 0,
-          "minimumCoverage": 0.9999999936421712,
+          "minimumCoverage": 0.9999999904632568,
           "minimumLandPixelAlpha": 232
         },
         "wrapped-view": {
-          "sampledFrames": 4,
+          "sampledFrames": 6,
           "blankFrames": 1,
           "minimumCoverage": 0,
           "minimumLandPixelAlpha": 0
         },
         "wrapped-refresh": {
-          "sampledFrames": 51,
+          "sampledFrames": 72,
           "blankFrames": 1,
           "minimumCoverage": 0,
           "minimumLandPixelAlpha": 0
@@ -89,7 +169,7 @@
       ],
       "fadeAnimated": false,
       "finalPixel": {
-        "alpha": 252,
+        "alpha": 254,
         "selected": true
       },
       "errors": []
@@ -104,10 +184,10 @@
           "minimumCoverage": 1
         },
         "staggered-outlines": {
-          "sampledFrames": 47,
+          "sampledFrames": 46,
           "blankFrames": 0,
           "minimumCoverage": 1,
-          "minimumLandPixelAlpha": 235
+          "minimumLandPixelAlpha": 232
         },
         "real-click": {
           "sampledFrames": 4,
@@ -119,22 +199,22 @@
           "sampledFrames": 3,
           "blankFrames": 0,
           "minimumCoverage": 1,
-          "minimumLandPixelAlpha": 235
+          "minimumLandPixelAlpha": 232
         },
         "cached-below-detail-threshold": {
           "sampledFrames": 31,
           "blankFrames": 0,
-          "minimumCoverage": 0.755081164042155,
-          "minimumLandPixelAlpha": 235
+          "minimumCoverage": 0.7550819651285807,
+          "minimumLandPixelAlpha": 232
         },
         "cached-above-detail-threshold": {
-          "sampledFrames": 30,
+          "sampledFrames": 29,
           "blankFrames": 0,
-          "minimumCoverage": 0.9999999904632568,
-          "minimumLandPixelAlpha": 235
+          "minimumCoverage": 0.9999999809265137,
+          "minimumLandPixelAlpha": 232
         },
         "instant-normal-view": {
-          "sampledFrames": 6,
+          "sampledFrames": 7,
           "blankFrames": 0,
           "minimumCoverage": 1,
           "minimumLandPixelAlpha": 232
@@ -143,31 +223,31 @@
           "sampledFrames": 4,
           "blankFrames": 0,
           "minimumCoverage": 1,
-          "minimumLandPixelAlpha": 252
+          "minimumLandPixelAlpha": 254
         },
         "normal-zoom": {
           "sampledFrames": 33,
           "blankFrames": 0,
-          "minimumCoverage": 0.9999999904632568,
-          "minimumLandPixelAlpha": 111
+          "minimumCoverage": 0.9999999936421712,
+          "minimumLandPixelAlpha": 64
         },
         "fractional-zoom": {
           "sampledFrames": 34,
           "blankFrames": 0,
-          "minimumCoverage": 0.9999999904632568,
+          "minimumCoverage": 0.9999999888737996,
           "minimumLandPixelAlpha": 232
         },
         "wrapped-view": {
           "sampledFrames": 4,
           "blankFrames": 0,
           "minimumCoverage": 1,
-          "minimumLandPixelAlpha": 252
+          "minimumLandPixelAlpha": 254
         },
         "wrapped-refresh": {
-          "sampledFrames": 6,
+          "sampledFrames": 7,
           "blankFrames": 0,
           "minimumCoverage": 1,
-          "minimumLandPixelAlpha": 252
+          "minimumLandPixelAlpha": 254
         }
       },
       "redraws": 10,
@@ -181,7 +261,7 @@
       ],
       "fadeAnimated": false,
       "finalPixel": {
-        "alpha": 252,
+        "alpha": 254,
         "selected": true
       },
       "errors": []
@@ -191,21 +271,22 @@
       "scenario": "mobile",
       "phases": {
         "settled": {
-          "sampledFrames": 3,
+          "sampledFrames": 4,
           "blankFrames": 0,
-          "minimumCoverage": 1
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 253
         },
         "staggered-outlines": {
           "sampledFrames": 46,
           "blankFrames": 0,
           "minimumCoverage": 1,
-          "minimumLandPixelAlpha": 236
+          "minimumLandPixelAlpha": 249
         },
         "real-click": {
           "sampledFrames": 5,
           "blankFrames": 0,
           "minimumCoverage": 1,
-          "minimumLandPixelAlpha": 211
+          "minimumLandPixelAlpha": 224
         },
         "reset": {
           "sampledFrames": 3,
@@ -214,52 +295,52 @@
           "minimumLandPixelAlpha": 249
         },
         "cached-below-detail-threshold": {
-          "sampledFrames": 32,
+          "sampledFrames": 33,
           "blankFrames": 0,
-          "minimumCoverage": 0.9999999804374499,
-          "minimumLandPixelAlpha": 182
+          "minimumCoverage": 0.9999999713978831,
+          "minimumLandPixelAlpha": 124
         },
         "cached-above-detail-threshold": {
           "sampledFrames": 30,
           "blankFrames": 0,
           "minimumCoverage": 0.9999999608748998,
-          "minimumLandPixelAlpha": 182
+          "minimumLandPixelAlpha": 124
         },
         "instant-normal-view": {
           "sampledFrames": 6,
           "blankFrames": 0,
           "minimumCoverage": 1,
-          "minimumLandPixelAlpha": 242
+          "minimumLandPixelAlpha": 238
         },
         "instant-fractional-view": {
-          "sampledFrames": 5,
+          "sampledFrames": 7,
           "blankFrames": 0,
           "minimumCoverage": 1,
-          "minimumLandPixelAlpha": 239
+          "minimumLandPixelAlpha": 242
         },
         "normal-zoom": {
           "sampledFrames": 33,
           "blankFrames": 0,
-          "minimumCoverage": 0.9999999518353332,
-          "minimumLandPixelAlpha": 214
+          "minimumCoverage": 0.999999981179158,
+          "minimumLandPixelAlpha": 232
         },
         "fractional-zoom": {
           "sampledFrames": 33,
           "blankFrames": 0,
-          "minimumCoverage": 0.9999999954802166,
+          "minimumCoverage": 0.999999990960433,
           "minimumLandPixelAlpha": 232
         },
         "wrapped-view": {
-          "sampledFrames": 4,
-          "blankFrames": 0,
-          "minimumCoverage": 1,
-          "minimumLandPixelAlpha": 239
-        },
-        "wrapped-refresh": {
           "sampledFrames": 5,
           "blankFrames": 0,
           "minimumCoverage": 1,
-          "minimumLandPixelAlpha": 239
+          "minimumLandPixelAlpha": 242
+        },
+        "wrapped-refresh": {
+          "sampledFrames": 6,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 242
         }
       },
       "redraws": 10,
@@ -273,7 +354,7 @@
       ],
       "fadeAnimated": false,
       "finalPixel": {
-        "alpha": 239,
+        "alpha": 242,
         "selected": true
       },
       "errors": []

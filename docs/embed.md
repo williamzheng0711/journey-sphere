@@ -17,6 +17,12 @@ does not contain zoom refinement; pointing a consumer at that release does not
 pick up changes to the main branch. The current working tree must be published
 before a website can use its new immutable URL.
 
+The repaint fix is included in `ff0d7d6b095a4b1278e37fc5e40af1410614e864`.
+The older `cd88b044655967c8d103e0b2b9c0abf891694294` release still clears the map
+briefly during repainting. If a consumer continues to flash after a library
+update, check its actual script URL: an immutable pin must also be updated in
+the consuming website. Reloading the older pinned URL still loads older code.
+
 The script derives package URLs from its own URL. Serve modules with JavaScript
 MIME types and anonymous CORS, and serve JSON and styles with their correct MIME
 types. Compress static files and use immutable caching for pinned URLs.

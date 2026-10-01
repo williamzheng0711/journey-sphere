@@ -1,0 +1,78 @@
+{
+  "captureCanvasReadback": false,
+  "firstMapReadyMark": "Not collected; firstObservedLoadedMapMs is an upper bound after awaiting element.ready",
+  "variants": [
+    {
+      "variant": "baseline",
+      "pin": "cd88b044655967c8d103e0b2b9c0abf891694294",
+      "firstObservedLoadedMapMs": 1265.5,
+      "firstObservedLoadedMapIsUpperBound": true,
+      "selectedChunkLastResponseMs": 1138.5,
+      "outlineRefinementReadyMs": 5900.89999999851,
+      "arrivalSampledFrames": 211,
+      "arrivalBlankFrames": 19,
+      "idleDurationMs": 60015.89999999851,
+      "idleSampledFrames": 3602,
+      "idleBlankFrames": 0,
+      "idleEvents": 0,
+      "idleMutations": 0,
+      "idleResizeCallbacks": 0,
+      "runtimeCreateTileLength": 1,
+      "source": [
+        {
+          "url": "https://cdn.jsdelivr.net/gh/williamzheng0711/journey-sphere@cd88b044655967c8d103e0b2b9c0abf891694294/embed.js",
+          "sha256": "29185bc7d9e55a9ec70167162781c47b4b31e52b9334e8e94fa1f8e4a466947c",
+          "xVersion": "cd88b044655967c8d103e0b2b9c0abf891694294"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/gh/williamzheng0711/journey-sphere@cd88b044655967c8d103e0b2b9c0abf891694294/src/embed.js",
+          "sha256": "a9ea74cd99c38789e5c5317209b0e876ce13971903b1f12d94506ca191c9ba5f",
+          "xVersion": "cd88b044655967c8d103e0b2b9c0abf891694294"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/gh/williamzheng0711/journey-sphere@cd88b044655967c8d103e0b2b9c0abf891694294/src/compiled-layer.js",
+          "sha256": "488c80e02fe6f26bb75aee2f52b5a998393988db004215cc7cd17124a0d6dde1",
+          "xVersion": "cd88b044655967c8d103e0b2b9c0abf891694294"
+        }
+      ],
+      "captureCount": 39,
+      "pageErrors": []
+    },
+    {
+      "variant": "current",
+      "pin": "ff0d7d6b095a4b1278e37fc5e40af1410614e864",
+      "firstObservedLoadedMapMs": 3267.6999999955297,
+      "firstObservedLoadedMapIsUpperBound": true,
+      "selectedChunkLastResponseMs": 2238.39999999851,
+      "outlineRefinementReadyMs": 28310,
+      "arrivalSampledFrames": 1311,
+      "arrivalBlankFrames": 0,
+      "idleDurationMs": 60016.39999999851,
+      "idleSampledFrames": 3602,
+      "idleBlankFrames": 0,
+      "idleEvents": 0,
+      "idleMutations": 0,
+      "idleResizeCallbacks": 0,
+      "runtimeCreateTileLength": 2,
+      "source": [
+        {
+          "url": "https://cdn.jsdelivr.net/gh/williamzheng0711/journey-sphere@ff0d7d6b095a4b1278e37fc5e40af1410614e864/embed.js",
+          "sha256": "29185bc7d9e55a9ec70167162781c47b4b31e52b9334e8e94fa1f8e4a466947c",
+          "xVersion": "ff0d7d6b095a4b1278e37fc5e40af1410614e864"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/gh/williamzheng0711/journey-sphere@ff0d7d6b095a4b1278e37fc5e40af1410614e864/src/embed.js",
+          "sha256": "30245b532e25c5c8f6bcaa0e88500437d5a2b69cc43f5eda5b0283b43de172fe",
+          "xVersion": "ff0d7d6b095a4b1278e37fc5e40af1410614e864"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/gh/williamzheng0711/journey-sphere@ff0d7d6b095a4b1278e37fc5e40af1410614e864/src/compiled-layer.js",
+          "sha256": "87c06f8b0cb960195011f872e9bc27f752cce3828a8e84e13578cbab0488d2c5",
+          "xVersion": "ff0d7d6b095a4b1278e37fc5e40af1410614e864"
+        }
+      ],
+      "captureCount": 40,
+      "pageErrors": []
+    }
+  ]
+}

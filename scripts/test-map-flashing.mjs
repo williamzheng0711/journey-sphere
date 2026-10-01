@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 // Compare the previously flashing renderer with the current standalone library.
-// Every animation frame checks CSS visibility and actual canvas pixels; merely
-// counting existing canvas elements would miss Leaflet's hidden readiness frame.
+// Interactive checks inspect CSS visibility and actual canvas pixels. Separate
+// compositor checks capture real frames with canvas readbacks disabled: reading
+// a map canvas during capture could itself change the browser's rendering path.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -72,12 +73,150 @@ await mkdir(output, { recursive: true });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless: true,
+  ...(process.env.PLAYWRIGHT_GPU_BACKEND ? { args: ['--enable-gpu', `--use-angle=${process.env.PLAYWRIGHT_GPU_BACKEND}`] } : {}),
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
 const contexts = [];
 const checks = [];
+const compositorChecks = [];
 const pageErrors = [];
 const frames = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 const waitFor = (page, fn, arg) => page.waitForFunction(fn, arg, { timeout: 30000 });
+const browserSession = await browser.newBrowserCDPSession();
+const { gpu } = await browserSession.send('SystemInfo.getInfo');
+const compositorBackend = { renderer: gpu.auxAttributes.glRenderer, vendor: gpu.auxAttributes.glVendor,
+  features: Object.fromEntries(['2d_canvas', 'gpu_compositing'].map(key => [key, gpu.featureStatus[key]])) };
+await browserSession.detach();
+
+async function runCompositorCase(variant) {
+  const scenario = scenarios[0];
+  const deviceScaleFactor = 2;
+  const context = await browser.newContext({ viewport: { width: scenario.width, height: scenario.height }, deviceScaleFactor });
+  contexts.push(context);
+  const page = await context.newPage();
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await page.goto(`${origin}/${variant}/fixture.html?case=${scenario.key}`, { waitUntil: 'domcontentloaded' });
+  await waitFor(page, () => window.__ready);
+  await page.evaluate(async () => { await window.__ready; await api.loadOutlineDetails(); });
+  await page.waitForTimeout(150); await frames(page);
+  // This fresh page never installs the canvas-pixel monitor. Fail loudly if a
+  // future fixture or renderer starts reading canvas pixels during the capture.
+  const before = await page.evaluate(() => {
+    window.__captureReadbacks = 0;
+    const originals = [];
+    const guard = (prototype, name) => {
+      if (!prototype?.[name]) return;
+      originals.push([prototype, name, prototype[name]]);
+      prototype[name] = function () {
+        window.__captureReadbacks++;
+        throw new Error(`Canvas ${name} readback during compositor capture`);
+      };
+    };
+    guard(CanvasRenderingContext2D.prototype, 'getImageData');
+    guard(HTMLCanvasElement.prototype, 'toDataURL');
+    guard(HTMLCanvasElement.prototype, 'toBlob');
+    guard(window.OffscreenCanvasRenderingContext2D?.prototype, 'getImageData');
+    guard(window.OffscreenCanvas?.prototype, 'convertToBlob');
+    window.__restoreReadbacks = () => { for (const [prototype, name, value] of originals) prototype[name] = value; };
+    return { visited: api.getVisited(), center: [api.map.getCenter().lat, api.map.getCenter().lng], zoom: api.map.getZoom() };
+  });
+  const capture = [];
+  let phase = 'idle-before', firstFrame;
+  const first = new Promise(resolve => { firstFrame = resolve; });
+  const cdp = await context.newCDPSession(page);
+  cdp.on('Page.screencastFrame', event => {
+    capture.push({ data: event.data, time: event.metadata.timestamp, phase });
+    firstFrame();
+    cdp.send('Page.screencastFrameAck', { sessionId: event.sessionId }).catch(() => {});
+  });
+  await cdp.send('Page.startScreencast', { format: 'png', maxWidth: scenario.width * deviceScaleFactor,
+    maxHeight: scenario.height * deviceScaleFactor, everyNthFrame: 1 });
+  try {
+    await Promise.race([first, page.waitForTimeout(5000).then(() => { throw new Error('No compositor frame received'); })]);
+    await page.waitForTimeout(500);
+    phase = 'redraw';
+    const cycles = 60, targetDurationMs = 3000;
+    const redrawDurationMs = await page.evaluate(async ({ cycles, targetDurationMs }) => {
+      const started = performance.now();
+      for (let index = 0; index < cycles; index++) {
+        await new Promise(resolve => setTimeout(resolve, Math.max(0, started + index * targetDurationMs / cycles - performance.now())));
+        await new Promise(resolve => requestAnimationFrame(() => { layer.refresh(); resolve(); }));
+      }
+      return performance.now() - started;
+    }, { cycles, targetDurationMs });
+    phase = 'idle-after';
+    await page.waitForTimeout(500);
+    await cdp.send('Page.stopScreencast');
+    const after = await page.evaluate(() => {
+      window.__restoreReadbacks();
+      return { visited: api.getVisited(), center: [api.map.getCenter().lat, api.map.getCenter().lng], zoom: api.map.getZoom(),
+        readbacks: window.__captureReadbacks, errors: window.__errors };
+    });
+    assert.equal(after.readbacks, 0, `${variant}: compositor capture performed no canvas readbacks`);
+    assert.deepEqual(after.errors, [], `${variant}: fixed-state repaints have no renderer errors`);
+    assert.deepEqual({ visited: after.visited, center: after.center, zoom: after.zoom }, before,
+      `${variant}: repeated repaint preserves selection and view`);
+    assert.ok(capture.filter(frame => frame.phase === 'redraw').length >= cycles / 2,
+      `${variant}: compositor sampled the repeated repaint sequence`);
+
+    // Decode screenshots only after capture stops and readback guards restore.
+    // Deduplicate PNGs before decoding to bound work; compare decoded RGBA, not
+    // PNG encoding, so metadata/compression changes cannot fake a pixel change.
+    const encoded = [...new Set(capture.map(frame => frame.data))];
+    const images = await page.evaluate(async ({ encoded, width, height }) => {
+      const results = []; let reference;
+      for (const data of encoded) {
+        const bytes = Uint8Array.from(atob(data), character => character.charCodeAt(0));
+        const image = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+        const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+        const context = canvas.getContext('2d'); context.drawImage(image, 0, 0); image.close();
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', pixels))]
+          .map(value => value.toString(16).padStart(2, '0')).join('');
+        let changedPixels = 0, maximumChannelDifference = 0, land = 0;
+        if (!reference) reference = pixels;
+        for (let index = 0; index < pixels.length; index += 4) {
+          let changed = false;
+          for (let channel = 0; channel < 4; channel++) {
+            const difference = Math.abs(pixels[index + channel] - reference[index + channel]);
+            maximumChannelDifference = Math.max(maximumChannelDifference, difference); changed ||= difference !== 0;
+          }
+          if (changed) changedPixels++;
+        }
+        const scaleX = canvas.width / width, scaleY = canvas.height / height;
+        for (let y = 70; y < height - 100; y += 40) for (let x = 70; x < width - 70; x += 40) {
+          const index = (Math.floor(y * scaleY) * canvas.width + Math.floor(x * scaleX)) * 4;
+          if (Math.abs(pixels[index] - 238) > 2 || Math.abs(pixels[index + 1] - 247) > 2 || Math.abs(pixels[index + 2] - 251) > 2) land++;
+        }
+        results.push({ hash, width: canvas.width, height: canvas.height, blank: land === 0, changedPixels, maximumChannelDifference });
+      }
+      return results;
+    }, { encoded, width: scenario.width, height: scenario.height });
+    const byEncoding = new Map(encoded.map((data, index) => [data, images[index]]));
+    const blankFrames = capture.filter(frame => byEncoding.get(frame.data).blank);
+    const record = { variant, scenario: 'fixed-state-compositor', viewport: [scenario.width, scenario.height], deviceScaleFactor,
+      redrawCycles: cycles, targetRedrawDurationMs: targetDurationMs, actualRedrawDurationMs: redrawDurationMs, idleBeforeMs: 500, idleAfterMs: 500,
+      capturedFrames: capture.length, framesByPhase: Object.fromEntries(['idle-before', 'redraw', 'idle-after'].map(value =>
+        [value, capture.filter(frame => frame.phase === value).length])), captureSpanMs: (capture.at(-1).time - capture[0].time) * 1000,
+      screenshotSize: [images[0].width, images[0].height], uniquePixelImages: new Set(images.map(image => image.hash)).size,
+      blankFrames: blankFrames.length, maximumChangedPixels: Math.max(...images.map(image => image.changedPixels)),
+      maximumChannelDifference: Math.max(...images.map(image => image.maximumChannelDifference)), canvasReadbacksDuringCapture: after.readbacks,
+      errors: after.errors, backend: compositorBackend };
+    compositorChecks.push(record);
+    if (variant === 'current') {
+      await writeFile(path.join(output, 'compositor-current.png'), Buffer.from(capture[0].data, 'base64'));
+      assert.equal(blankFrames.length, 0, 'current compositor never captures blank land during repeated fixed-state repaint');
+      assert.equal(record.uniquePixelImages, 1, 'current compositor preserves every pixel when map state is unchanged');
+    } else {
+      assert.ok(blankFrames.length > 0, 'pinned baseline control captures actual blank compositor frames without canvas readbacks');
+      assert.ok(blankFrames.length < capture.length, 'baseline control also captures normally painted land');
+      await writeFile(path.join(output, 'compositor-baseline-blank.png'), Buffer.from(blankFrames[0].data, 'base64'));
+    }
+  } finally {
+    await cdp.send('Page.stopScreencast').catch(() => {});
+    await page.evaluate(() => window.__restoreReadbacks()).catch(() => {});
+    await context.close();
+  }
+}
 
 async function installMonitor(page) {
   await page.evaluate(() => {
@@ -307,13 +446,15 @@ async function runCase(variant, scenario) {
 }
 let ok = false;
 try {
+  await runCompositorCase('baseline');
+  await runCompositorCase('current');
   await runCase('baseline', scenarios[0]);
   for (const scenario of scenarios) await runCase('current', scenario);
   assert.deepEqual(pageErrors, [], 'fixtures have no uncaught browser errors');
   ok = true;
-  console.log(JSON.stringify({ ok, baselineRef, checks, pageErrors }, null, 2));
+  console.log(JSON.stringify({ ok, baselineRef, compositorChecks, checks, pageErrors }, null, 2));
 } finally {
-  await writeFile(path.join(output, 'flashing-test.json'), JSON.stringify({ ok, baselineRef, checks, pageErrors }, null, 2));
+  await writeFile(path.join(output, 'flashing-test.json'), JSON.stringify({ ok, baselineRef, compositorChecks, checks, pageErrors }, null, 2));
   await Promise.allSettled(contexts.map(context => context.close()));
   await browser.close(); await new Promise(resolve => server.close(resolve));
   await rm(baselineRoot, { recursive: true, force: true });
