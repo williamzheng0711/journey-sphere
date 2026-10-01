@@ -1,0 +1,403 @@
+{
+  "ok": true,
+  "baselineRef": "3503a3c77c684dcd9305f7f889b1044ed97a11d5",
+  "compositorChecks": [
+    {
+      "variant": "baseline",
+      "scenario": "fixed-state-compositor",
+      "viewport": [
+        1200,
+        800
+      ],
+      "deviceScaleFactor": 2,
+      "redrawCycles": 60,
+      "targetRedrawDurationMs": 3000,
+      "actualRedrawDurationMs": 2958,
+      "idleBeforeMs": 500,
+      "idleAfterMs": 500,
+      "capturedFrames": 121,
+      "framesByPhase": {
+        "idle-before": 1,
+        "redraw": 118,
+        "idle-after": 2
+      },
+      "captureSpanMs": 3508.012056350708,
+      "screenshotSize": [
+        1200,
+        800
+      ],
+      "uniquePixelImages": 5,
+      "blankFrames": 60,
+      "maximumChangedPixels": 433347,
+      "maximumChannelDifference": 230,
+      "canvasReadbacksDuringCapture": 0,
+      "errors": [],
+      "backend": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5, Version 27.0.1 (Build 26A434))",
+        "vendor": "Google Inc. (Apple)",
+        "features": {
+          "2d_canvas": "enabled",
+          "gpu_compositing": "enabled"
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "scenario": "fixed-state-compositor",
+      "viewport": [
+        1200,
+        800
+      ],
+      "deviceScaleFactor": 2,
+      "redrawCycles": 60,
+      "targetRedrawDurationMs": 3000,
+      "actualRedrawDurationMs": 2974.39999999851,
+      "idleBeforeMs": 500,
+      "idleAfterMs": 500,
+      "capturedFrames": 61,
+      "framesByPhase": {
+        "idle-before": 1,
+        "redraw": 59,
+        "idle-after": 1
+      },
+      "captureSpanMs": 3505.765914916992,
+      "screenshotSize": [
+        1200,
+        800
+      ],
+      "uniquePixelImages": 1,
+      "blankFrames": 0,
+      "maximumChangedPixels": 0,
+      "maximumChannelDifference": 0,
+      "canvasReadbacksDuringCapture": 0,
+      "errors": [],
+      "backend": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5, Version 27.0.1 (Build 26A434))",
+        "vendor": "Google Inc. (Apple)",
+        "features": {
+          "2d_canvas": "enabled",
+          "gpu_compositing": "enabled"
+        }
+      }
+    }
+  ],
+  "checks": [
+    {
+      "variant": "baseline",
+      "scenario": "desktop",
+      "phases": {
+        "settled": {
+          "sampledFrames": 5,
+          "blankFrames": 0,
+          "minimumCoverage": 1
+        },
+        "staggered-outlines": {
+          "sampledFrames": 45,
+          "blankFrames": 5,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "real-click": {
+          "sampledFrames": 5,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "reset": {
+          "sampledFrames": 2,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "cached-below-detail-threshold": {
+          "sampledFrames": 33,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "cached-above-detail-threshold": {
+          "sampledFrames": 31,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "instant-normal-view": {
+          "sampledFrames": 6,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "instant-fractional-view": {
+          "sampledFrames": 5,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "normal-zoom": {
+          "sampledFrames": 33,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999888737996,
+          "minimumLandPixelAlpha": 64
+        },
+        "fractional-zoom": {
+          "sampledFrames": 34,
+          "blankFrames": 0,
+          "minimumCoverage": 0.999999984105428,
+          "minimumLandPixelAlpha": 232
+        },
+        "wrapped-view": {
+          "sampledFrames": 5,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        },
+        "wrapped-refresh": {
+          "sampledFrames": 65,
+          "blankFrames": 1,
+          "minimumCoverage": 0,
+          "minimumLandPixelAlpha": 0
+        }
+      },
+      "redraws": 10,
+      "retainedLoadedTileIdentity": false,
+      "outlineRequestsReleased": [
+        "data/outlines/CHN.json",
+        "data/outlines/overview/KOR.json",
+        "data/outlines/overview/TWN.json",
+        "data/outlines/JPN.json",
+        "data/outlines/overview/PRK.json"
+      ],
+      "fadeAnimated": false,
+      "finalPixel": {
+        "alpha": 254,
+        "selected": true
+      },
+      "errors": []
+    },
+    {
+      "variant": "current",
+      "scenario": "desktop",
+      "phases": {
+        "settled": {
+          "sampledFrames": 5,
+          "blankFrames": 0,
+          "minimumCoverage": 1
+        },
+        "staggered-outlines": {
+          "sampledFrames": 47,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 232
+        },
+        "real-click": {
+          "sampledFrames": 4,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 214
+        },
+        "reset": {
+          "sampledFrames": 3,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 232
+        },
+        "cached-below-detail-threshold": {
+          "sampledFrames": 31,
+          "blankFrames": 0,
+          "minimumCoverage": 0.7551348114013672,
+          "minimumLandPixelAlpha": 232
+        },
+        "cached-above-detail-threshold": {
+          "sampledFrames": 30,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999809265137,
+          "minimumLandPixelAlpha": 232
+        },
+        "instant-normal-view": {
+          "sampledFrames": 7,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 232
+        },
+        "instant-fractional-view": {
+          "sampledFrames": 7,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 254
+        },
+        "normal-zoom": {
+          "sampledFrames": 34,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999904632568,
+          "minimumLandPixelAlpha": 83
+        },
+        "fractional-zoom": {
+          "sampledFrames": 35,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999936421712,
+          "minimumLandPixelAlpha": 232
+        },
+        "wrapped-view": {
+          "sampledFrames": 6,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 254
+        },
+        "wrapped-refresh": {
+          "sampledFrames": 6,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 254
+        }
+      },
+      "redraws": 10,
+      "retainedLoadedTileIdentity": true,
+      "outlineRequestsReleased": [
+        "data/outlines/CHN.json",
+        "data/outlines/overview/KOR.json",
+        "data/outlines/overview/TWN.json",
+        "data/outlines/JPN.json",
+        "data/outlines/overview/PRK.json"
+      ],
+      "fadeAnimated": false,
+      "finalPixel": {
+        "alpha": 254,
+        "selected": true
+      },
+      "errors": []
+    },
+    {
+      "variant": "current",
+      "scenario": "mobile",
+      "phases": {
+        "settled": {
+          "sampledFrames": 4,
+          "blankFrames": 0,
+          "minimumCoverage": 1
+        },
+        "staggered-outlines": {
+          "sampledFrames": 45,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 234
+        },
+        "real-click": {
+          "sampledFrames": 5,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 224
+        },
+        "reset": {
+          "sampledFrames": 3,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 252
+        },
+        "cached-below-detail-threshold": {
+          "sampledFrames": 32,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999713978831,
+          "minimumLandPixelAlpha": 124
+        },
+        "cached-above-detail-threshold": {
+          "sampledFrames": 30,
+          "blankFrames": 0,
+          "minimumCoverage": 0.999999981920866,
+          "minimumLandPixelAlpha": 124
+        },
+        "instant-normal-view": {
+          "sampledFrames": 5,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 242
+        },
+        "instant-fractional-view": {
+          "sampledFrames": 5,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 242
+        },
+        "normal-zoom": {
+          "sampledFrames": 33,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999804374499,
+          "minimumLandPixelAlpha": 218
+        },
+        "fractional-zoom": {
+          "sampledFrames": 33,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 232
+        },
+        "wrapped-view": {
+          "sampledFrames": 6,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 242
+        },
+        "wrapped-refresh": {
+          "sampledFrames": 6,
+          "blankFrames": 0,
+          "minimumCoverage": 1,
+          "minimumLandPixelAlpha": 242
+        }
+      },
+      "redraws": 10,
+      "retainedLoadedTileIdentity": true,
+      "outlineRequestsReleased": [
+        "data/outlines/CHN.json",
+        "data/outlines/overview/KOR.json",
+        "data/outlines/overview/TWN.json",
+        "data/outlines/JPN.json",
+        "data/outlines/overview/PRK.json"
+      ],
+      "fadeAnimated": false,
+      "finalPixel": {
+        "alpha": 242,
+        "selected": true
+      },
+      "errors": []
+    },
+    {
+      "variant": "current",
+      "scenario": "wrapped-world",
+      "phases": {
+        "settled": {
+          "sampledFrames": 3,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999984105428
+        },
+        "staggered-outlines": {
+          "sampledFrames": 10,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999984105428,
+          "minimumLandPixelAlpha": 0
+        },
+        "wrapped-refresh": {
+          "sampledFrames": 3,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999984105428,
+          "minimumLandPixelAlpha": 214
+        },
+        "fractional-zoom": {
+          "sampledFrames": 2,
+          "blankFrames": 0,
+          "minimumCoverage": 0.9999999904632568,
+          "minimumLandPixelAlpha": 214
+        }
+      },
+      "redraws": 2,
+      "retainedLoadedTileIdentity": true,
+      "outlineRequestsReleased": [
+        "data/outlines/fragments/USA/3.json"
+      ],
+      "fadeAnimated": false,
+      "finalPixel": {
+        "alpha": 214,
+        "selected": false
+      },
+      "errors": []
+    }
+  ],
+  "pageErrors": []
+}

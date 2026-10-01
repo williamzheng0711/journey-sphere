@@ -87,7 +87,7 @@ test('only visited first-level divisions expose their internal regions, includin
   });
 });
 
-test('only visited regions expose hover labels, and labels follow visit toggles', async () => {
+test('only visited regions expose hover labels, and labels follow programmatic changes', async () => {
   await withDom(async () => {
     const leaflet = createLeafletMock();
     const sphere = await createJourneySphere(createContainer(), {
@@ -101,19 +101,29 @@ test('only visited regions expose hover labels, and labels follow visit toggles'
 
     assert.equal(first.tooltipBound, true);
     assert.equal(second.tooltipBound, false);
+    first.emit('mouseover', { latlng: { lat: 0.2, lng: 0.8 } });
+    second.emit('mouseover');
+    assert.equal(first.tooltipOpen, true);
+    assert.equal(second.tooltipOpen, false);
+    first.emit('mouseout');
+    assert.equal(first.tooltipOpen, false);
+    first.emit('click');
     second.emit('click');
-    await waitFor(() => sphere.getVisited().includes('AA:r2'));
+    assert.deepEqual(sphere.getVisited(), ['AA:r1']);
+    assert.equal(first.tooltipOpen, false, 'A click does not open a tooltip');
+    await sphere.setVisited(['AA:r1', 'AA:r2']);
     assert.equal(first.tooltipBound, true);
     assert.equal(second.tooltipBound, true);
-    first.emit('click');
-    await waitFor(() => sphere.getVisited().length === 1 && sphere.getVisited()[0] === 'AA:r2');
+    await sphere.setVisited(['AA:r2']);
     assert.equal(first.tooltipBound, false);
     assert.equal(second.tooltipBound, true);
+    second.emit('mousemove', { latlng: { lat: 0.2, lng: 1.8 } });
+    assert.equal(second.tooltipOpen, true, 'Newly selected regions can be named without leaving and re-entering them');
     sphere.destroy();
   });
 });
 
-test('label elements are created only when visited and reused after toggling', async () => {
+test('label elements are created only when visited and reused after selection changes', async () => {
   await withDom(async ({ elements }) => {
     const leaflet = createLeafletMock();
     const sphere = await createJourneySphere(createContainer(), {
@@ -132,7 +142,113 @@ test('label elements are created only when visited and reused after toggling', a
   });
 });
 
-test('feature clicks toggle visits and reset restores the initial selection and view', async () => {
+test('touch holds name visited regions without changing visits, while taps and pans stay quiet', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1000 });
+  await withDom(async () => {
+    const leaflet = createLeafletMock();
+    const container = createContainer();
+    const changes = [];
+    const sphere = await createJourneySphere(container, {
+      atlas: createAtlas(), leaflet, visited: ['AA:r1'],
+      labels: { 'AA:r1': '<b>My region</b>' },
+      onChange: change => changes.push(change),
+    });
+    const layers = detailLayers(leaflet)[0].featureLayers;
+    const first = layers.find(item => item.feature.properties.id === 'AA:r1');
+    const anyOpen = () => layers.some(layer => layer.tooltipOpen);
+    const start = (lng, lat = 0.2) => {
+      const event = { type: 'touchstart', target: container, touches: [{ identifier: 1, clientX: lng, clientY: lat }] };
+      globalThis.document.emit('touchstart', event);
+      container.emit('touchstart', event);
+    };
+    const end = () => globalThis.document.emit('touchend', { type: 'touchend', touches: [] });
+
+    start(0.8);
+    t.mock.timers.tick(499);
+    assert.equal(anyOpen(), false);
+    end();
+    first.emit('click');
+    first.emit('mouseover', { originalEvent: { type: 'mouseover' } });
+    t.mock.timers.tick(501);
+    assert.equal(anyOpen(), false, 'Short taps and their synthesized hover never show a label');
+    t.mock.timers.tick(300);
+    first.emit('mousemove', { originalEvent: { type: 'mousemove' }, latlng: { lat: 0.2, lng: 0.8 } });
+    assert.equal(first.tooltipOpen, true, 'Real mouse movement opens the name after suppressed mouseover without requiring re-entry');
+    first.emit('mouseout');
+
+    start(0.8);
+    t.mock.timers.tick(500);
+    assert.equal(first.tooltipOpen, true);
+    assert.equal(first.tooltipContent.textContent, '<b>My region</b>', 'Custom names remain plain text');
+    assert.deepEqual(first.tooltipLatLng, { lat: 0.2, lng: 0.8 });
+    assert.deepEqual(sphere.getVisited(), ['AA:r1']);
+    assert.equal(changes.length, 0);
+    end();
+    assert.equal(anyOpen(), false, 'Lifting the finger dismisses the name');
+
+    start(1.8);
+    t.mock.timers.tick(500);
+    assert.equal(anyOpen(), false, 'Unvisited regions never show a name');
+    end();
+    start(0.2, 0.8);
+    t.mock.timers.tick(500);
+    assert.equal(anyOpen(), false, 'A point inside a bounding box but outside the polygon is ignored');
+    end();
+
+    start(0.8);
+    leaflet.maps[0].emit('movestart');
+    t.mock.timers.tick(500);
+    assert.equal(anyOpen(), false, 'Panning cancels a pending hold');
+    end();
+
+    start(360.8);
+    t.mock.timers.tick(500);
+    assert.equal(layers.find(item => item.feature.properties.__worldCopyOffset === 360 && item.feature.properties.id === 'AA:r1').tooltipOpen, true);
+    await sphere.setVisited(['AA:r2']);
+    assert.equal(anyOpen(), false, 'Changing the selection dismisses a held name');
+    end();
+
+    start(1.8);
+    sphere.destroy();
+    t.mock.timers.tick(500);
+    assert.equal(anyOpen(), false, 'Destroy cancels pending holds');
+  });
+});
+
+test('long-press hit testing honors polygon holes and multipolygon islands', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1000 });
+  await withDom(async () => {
+    const data = countryData('AA');
+    data.features[0].geometry = {
+      type: 'MultiPolygon',
+      coordinates: [
+        [
+          [[0, 0], [3, 0], [3, 3], [0, 3], [0, 0]],
+          [[1, 1], [2, 1], [2, 2], [1, 2], [1, 1]],
+        ],
+        [[[5, 0], [6, 0], [6, 1], [5, 1], [5, 0]]],
+      ],
+    };
+    const leaflet = createLeafletMock();
+    const container = createContainer();
+    const sphere = await createJourneySphere(container, {
+      atlas: createAtlas({ loadCountry: async () => data }), leaflet, visited: ['AA:r1'],
+    });
+    const first = detailLayers(leaflet)[0].featureLayers[0];
+    const hold = (lng, lat) => {
+      container.emit('touchstart', { type: 'touchstart', target: container, touches: [{ identifier: 1, clientX: lng, clientY: lat }] });
+      t.mock.timers.tick(500);
+    };
+    hold(1.5, 1.5);
+    assert.equal(first.tooltipOpen, false, 'Holes are not part of the visited land');
+    globalThis.document.emit('touchend', { type: 'touchend', touches: [] });
+    hold(5.5, 0.5);
+    assert.equal(first.tooltipOpen, true, 'Separate islands share the visited place name');
+    sphere.destroy();
+  });
+});
+
+test('feature clicks preserve visits and reset restores the initial selection and view', async () => {
   await withDom(async () => {
     const leaflet = createLeafletMock();
     const changes = [];
@@ -148,14 +264,14 @@ test('feature clicks toggle visits and reset restores the initial selection and 
 
     const aaLayer = detailLayers(leaflet)[0];
     aaLayer.featureLayers.find(layer => layer.feature.properties.id === 'AA:r1').emit('click');
-    await waitFor(() => sphere.getVisited().length === 0);
-    assert.deepEqual(sphere.getVisited(), []);
-
     aaLayer.featureLayers.find(layer => layer.feature.properties.id === 'AA:r2').emit('click');
-    await waitFor(() => sphere.getVisited()[0] === 'AA:r2');
+    assert.deepEqual(sphere.getVisited(), ['AA:r1']);
+    assert.equal(changes.length, 0, 'Inspection does not emit selection changes');
+
+    await sphere.setVisited(['AA:r2']);
     assert.deepEqual(sphere.getVisited(), ['AA:r2']);
-    assert.equal(changes.length, 2);
-    assert.match(changes[1].codeword, /^js1_/);
+    assert.equal(changes.length, 1);
+    assert.match(changes[0].codeword, /^js1_/);
 
     await sphere.reset();
     assert.deepEqual(sphere.getVisited(), ['AA:r1']);
@@ -179,11 +295,11 @@ test('separate instances keep their status elements isolated', async () => {
 
     assert.equal(leaflet.statusElements.length, 2);
     assert.notEqual(leaflet.statusElements[0], leaflet.statusElements[1]);
-    assert.match(leaflet.statusElements[0].textContent, /colored region/i);
-    assert.match(leaflet.statusElements[1].textContent, /click to toggle/i);
+    assert.equal(leaflet.statusElements[0].textContent, 'Hover over a visited region or long press it to see its name.');
+    assert.equal(leaflet.statusElements[1].textContent, 'Hover over a visited region or long press it to see its name.');
 
     first.destroy();
-    assert.match(leaflet.statusElements[1].textContent, /click to toggle/i);
+    assert.equal(leaflet.statusElements[1].textContent, 'Hover over a visited region or long press it to see its name.');
     second.destroy();
   });
 });
@@ -368,6 +484,8 @@ function feature(properties, offset = 0) {
 function createContainer() {
   const classes = new Set();
   return {
+    ...createEventTarget(),
+    ownerDocument: globalThis.document,
     clientWidth: 800,
     clientHeight: 500,
     classList: {
@@ -386,9 +504,9 @@ function createLeafletMock() {
   };
 
   mock.map = (container, options) => {
-    const handlers = new Map();
     const layers = new Set();
     const map = {
+      ...createEvents(),
       container,
       options,
       layers,
@@ -405,8 +523,8 @@ function createLeafletMock() {
       addLayer(layer) { layers.add(layer); },
       removeLayer(layer) { layers.delete(layer); },
       hasLayer(layer) { return layers.has(layer); },
-      on(event, handler) { handlers.set(event, handler); return this; },
-      emit(event) { handlers.get(event)?.(); },
+      getContainer() { return container; },
+      mouseEventToLatLng(event) { return { lat: event.clientY, lng: event.clientX }; },
       getCenter() { return this.center; },
       getPixelWorldBounds() { return { min: { y: 0 }, max: { y: 1024 } }; },
       getSize() { return { x: container.clientWidth, y: container.clientHeight }; },
@@ -424,14 +542,29 @@ function createLeafletMock() {
   mock.canvas = options => ({ options });
   mock.geoJSON = (features, options) => {
     const featureLayers = features.map(featureItem => {
-      const handlers = new Map();
       const featureLayer = {
+        ...createEvents(),
         feature: featureItem,
         tooltipBound: false,
-        bindTooltip() { this.tooltipBound = true; return this; },
-        unbindTooltip() { this.tooltipBound = false; return this; },
-        on(event, handler) { handlers.set(event, handler); return this; },
-        emit(event) { handlers.get(event)?.(); },
+        tooltipOpen: false,
+        bindTooltip(content) {
+          this.tooltipBound = true;
+          this.tooltipContent = content;
+          // Model Leaflet's default touch-click opening so tests catch it
+          // being accidentally retained alongside the long-press gesture.
+          this.on('mouseover click', this.openTooltip);
+          this.on('mouseout', this.closeTooltip);
+          return this;
+        },
+        unbindTooltip() {
+          this.tooltipBound = false;
+          this.closeTooltip();
+          this.off('mouseover click', this.openTooltip);
+          this.off('mouseout', this.closeTooltip);
+          return this;
+        },
+        openTooltip(latlng) { this.tooltipOpen = true; this.tooltipLatLng = latlng; return this; },
+        closeTooltip() { this.tooltipOpen = false; return this; },
       };
       options.onEachFeature?.(featureItem, featureLayer);
       return featureLayer;
@@ -482,6 +615,7 @@ async function withDom(run) {
   const elements = [];
 
   globalThis.document = {
+    ...createEventTarget(),
     createElement(tag) {
       const element = createElement();
       elements.push({ tag, element });
@@ -507,6 +641,38 @@ async function withDom(run) {
     if (previousResizeObserver === undefined) delete globalThis.ResizeObserver;
     else globalThis.ResizeObserver = previousResizeObserver;
   }
+}
+
+function createEvents() {
+  const handlers = new Map();
+  return {
+    on(events, handler) {
+      for (const event of events.split(' ')) {
+        if (!handlers.has(event)) handlers.set(event, new Set());
+        handlers.get(event).add(handler);
+      }
+      return this;
+    },
+    off(events, handler) {
+      for (const event of events.split(' ')) {
+        if (handler) handlers.get(event)?.delete(handler);
+        else handlers.delete(event);
+      }
+      return this;
+    },
+    emit(event, detail = {}) {
+      for (const handler of handlers.get(event) || []) handler.call(this, detail);
+    },
+  };
+}
+
+function createEventTarget() {
+  const events = createEvents();
+  return {
+    addEventListener: events.on,
+    removeEventListener: events.off,
+    emit: events.emit,
+  };
 }
 
 function deferred() {

@@ -363,8 +363,8 @@ async function runCase(variant, scenario) {
   } else {
     await assertPainted(page);
     if (variant === 'current' && scenario.key === 'desktop') await page.screenshot({ path: path.join(output, 'current-refined.png') });
-    await setPhase(page, 'real-click');
-    if (scenario.touch) await page.touchscreen.tap(point.x, point.y); else await page.mouse.click(point.x, point.y);
+    await setPhase(page, 'visit-update');
+    await page.evaluate(() => api.setVisited(api.getVisited().filter(id => id !== window.__selectedId)));
     await waitFor(page, () => !api.getVisited().includes(window.__selectedId)); await frames(page);
     await setPhase(page, 'reset');
     await page.evaluate(() => api.reset()); await frames(page); await assertPainted(page);
@@ -412,7 +412,7 @@ async function runCase(variant, scenario) {
       minimumCoverage: Math.min(...values.map(frame => frame.coverage)),
       ...(alpha.length ? { minimumLandPixelAlpha: Math.min(...alpha) } : {}) }];
   }));
-  const fixedPhases = new Set(['staggered-outlines', 'real-click', 'reset', 'wrapped-refresh']);
+  const fixedPhases = new Set(['staggered-outlines', 'visit-update', 'reset', 'wrapped-refresh']);
   const fixedEvents = result.events.filter(event => fixedPhases.has(event.before.phase));
   const stable = fixedEvents.every(({ before, after }) => before.tiles.every(tile =>
     after.tiles.some(next => next.id === tile.id && next.loaded === tile.loaded && next.shown === tile.shown)) &&
@@ -423,18 +423,18 @@ async function runCase(variant, scenario) {
         ({ time, phase, coverage, pixelAlpha })) }, null, 2));
     assert.ok(result.frames.length > 0, 'current frame monitor ran');
     assert.ok(result.frames.every(frame => frame.coverage > 0), 'current map never has a blank displayed animation frame');
-    assert.ok(stable, 'current refinement, clicks, reset and wrapped repaint retain loaded DOM tile identity/visibility');
+    assert.ok(stable, 'current refinement, visit updates, reset and wrapped repaint retain loaded DOM tile identity/visibility');
     assert.ok(fixedEvents.every(event => event.after.coverage > 0), 'current synchronous redraw leaves the painted map visible');
     // The tiny Guam island is absent from the small coarse overview at this
     // probe, so require its actual land only once the fine fragment is ready.
     const paintedPhases = scenario.worldOnly ? new Set(['wrapped-refresh']) : fixedPhases;
     assert.ok(result.frames.filter(frame => paintedPhases.has(frame.phase)).every(frame => frame.pixelAlpha > 100),
-      'current refinement, click, reset and wrapped repaint retain actual painted land on every sampled frame');
+      'current refinement, visit update, reset and wrapped repaint retain actual painted land on every sampled frame');
     if (!scenario.worldOnly) assert.ok(result.frames.filter(frame => ['staggered-outlines', 'wrapped-refresh'].includes(frame.phase))
       .every(frame => frame.selectedPixel), 'refinement and wrapped repaint retain actual selected color on every sampled frame');
     assert.deepEqual(result.errors, [], 'current fixture has no renderer errors');
   } else {
-    for (const phase of ['staggered-outlines', 'real-click', 'reset']) {
+    for (const phase of ['staggered-outlines', 'visit-update', 'reset']) {
       assert.ok(phases[phase]?.blankFrames > 0, `pinned baseline reproduces blank ${phase} frames`);
     }
     assert.equal(stable, false, 'pinned baseline discards its loaded canvas tiles');

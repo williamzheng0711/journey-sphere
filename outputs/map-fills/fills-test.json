@@ -1,0 +1,1624 @@
+{
+  "baselineRef": "7f1f06c7",
+  "checks": [
+    {
+      "type": "real-geometry",
+      "variant": "baseline",
+      "dpr": 1,
+      "samples": [
+        {
+          "name": "overlap-0",
+          "lat": 22.127485,
+          "lng": 113.54909933074396,
+          "x": 559,
+          "y": 554
+        },
+        {
+          "name": "overlap-1",
+          "lat": 22.196505,
+          "lng": 113.53331771403492,
+          "x": 513,
+          "y": 337
+        },
+        {
+          "name": "zhuhai-only",
+          "lat": 22.287825731608795,
+          "lng": 113.49288940429689,
+          "x": 395,
+          "y": 50
+        },
+        {
+          "name": "macao-only",
+          "lat": 22.212516920790357,
+          "lng": 113.54953765869142,
+          "x": 560,
+          "y": 287
+        }
+      ],
+      "both": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              77,
+              78,
+              179,
+              253
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              77,
+              78,
+              179,
+              253
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              129,
+              130,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              129,
+              130,
+              201,
+              232
+            ]
+          ]
+        }
+      ],
+      "zhuhai": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              138,
+              139,
+              204,
+              252
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              138,
+              139,
+              204,
+              252
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              129,
+              130,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              214
+            ]
+          ]
+        }
+      ],
+      "macao": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              138,
+              139,
+              204,
+              252
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              138,
+              139,
+              204,
+              252
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              129,
+              130,
+              201,
+              232
+            ]
+          ]
+        }
+      ],
+      "neutral": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              249
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              249
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              214
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "synthetic-same-color",
+      "dpr": 1,
+      "opacity": 0,
+      "pixels": {
+        "first": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "overlap": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "second": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "type": "synthetic-same-color",
+      "dpr": 1,
+      "opacity": 0.44,
+      "pixels": {
+        "first": [
+          0,
+          0,
+          148,
+          112
+        ],
+        "overlap": [
+          0,
+          0,
+          148,
+          112
+        ],
+        "second": [
+          0,
+          0,
+          148,
+          112
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          0,
+          0,
+          148,
+          112
+        ]
+      }
+    },
+    {
+      "type": "synthetic-same-color",
+      "dpr": 1,
+      "opacity": 1,
+      "pixels": {
+        "first": [
+          0,
+          0,
+          149,
+          255
+        ],
+        "overlap": [
+          0,
+          0,
+          149,
+          255
+        ],
+        "second": [
+          0,
+          0,
+          149,
+          255
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          0,
+          0,
+          149,
+          255
+        ]
+      }
+    },
+    {
+      "type": "synthetic-different-colors",
+      "dpr": 1,
+      "pixels": {
+        "first": [
+          0,
+          0,
+          148,
+          112
+        ],
+        "overlap": [
+          207,
+          43,
+          43,
+          112
+        ],
+        "second": [
+          207,
+          43,
+          43,
+          112
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          207,
+          43,
+          43,
+          112
+        ]
+      }
+    },
+    {
+      "type": "synthetic-css-alpha",
+      "dpr": 1,
+      "pixels": {
+        "first": [
+          0,
+          0,
+          150,
+          56
+        ],
+        "overlap": [
+          0,
+          0,
+          150,
+          56
+        ],
+        "second": [
+          0,
+          0,
+          150,
+          56
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          0,
+          0,
+          150,
+          56
+        ]
+      }
+    },
+    {
+      "type": "synthetic-world-union",
+      "dpr": 1,
+      "pixels": {
+        "first": [
+          248,
+          249,
+          251,
+          214
+        ],
+        "overlap": [
+          248,
+          249,
+          251,
+          214
+        ],
+        "second": [
+          248,
+          249,
+          251,
+          214
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          248,
+          249,
+          251,
+          214
+        ]
+      }
+    },
+    {
+      "type": "real-geometry",
+      "variant": "current",
+      "dpr": 1,
+      "samples": [
+        {
+          "name": "overlap-0",
+          "lat": 22.127485,
+          "lng": 113.54909933074396,
+          "x": 559,
+          "y": 554
+        },
+        {
+          "name": "overlap-1",
+          "lat": 22.196505,
+          "lng": 113.53331771403492,
+          "x": 513,
+          "y": 337
+        },
+        {
+          "name": "zhuhai-only",
+          "lat": 22.287825731608795,
+          "lng": 113.49288940429689,
+          "x": 395,
+          "y": 50
+        },
+        {
+          "name": "macao-only",
+          "lat": 22.212516920790357,
+          "lng": 113.54953765869142,
+          "x": 560,
+          "y": 287
+        }
+      ],
+      "both": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        }
+      ],
+      "zhuhai": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        }
+      ],
+      "macao": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        }
+      ],
+      "neutral": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "fractional-zoom",
+      "dpr": 1,
+      "zoom": 11.5,
+      "pixels": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "fractional-zoom",
+      "dpr": 1,
+      "zoom": 12,
+      "pixels": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "wrapped-world",
+      "dpr": 1,
+      "pixels": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "real-geometry",
+      "variant": "baseline",
+      "dpr": 2,
+      "samples": [
+        {
+          "name": "overlap-0",
+          "lat": 22.127485,
+          "lng": 113.54909933074396,
+          "x": 559,
+          "y": 554
+        },
+        {
+          "name": "overlap-1",
+          "lat": 22.196505,
+          "lng": 113.53331771403492,
+          "x": 513,
+          "y": 337
+        },
+        {
+          "name": "zhuhai-only",
+          "lat": 22.287825731608795,
+          "lng": 113.49288940429689,
+          "x": 395,
+          "y": 50
+        },
+        {
+          "name": "macao-only",
+          "lat": 22.212516920790357,
+          "lng": 113.54953765869142,
+          "x": 560,
+          "y": 287
+        }
+      ],
+      "both": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              77,
+              78,
+              179,
+              253
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              77,
+              78,
+              179,
+              253
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              129,
+              130,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              129,
+              130,
+              201,
+              232
+            ]
+          ]
+        }
+      ],
+      "zhuhai": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              138,
+              139,
+              204,
+              252
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              138,
+              139,
+              204,
+              252
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              129,
+              130,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              214
+            ]
+          ]
+        }
+      ],
+      "macao": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              138,
+              139,
+              204,
+              252
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              138,
+              139,
+              204,
+              252
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              129,
+              130,
+              201,
+              232
+            ]
+          ]
+        }
+      ],
+      "neutral": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              249
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              249
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              248,
+              250,
+              251,
+              214
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "synthetic-same-color",
+      "dpr": 2,
+      "opacity": 0,
+      "pixels": {
+        "first": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "overlap": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "second": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "type": "synthetic-same-color",
+      "dpr": 2,
+      "opacity": 0.44,
+      "pixels": {
+        "first": [
+          0,
+          0,
+          148,
+          112
+        ],
+        "overlap": [
+          0,
+          0,
+          148,
+          112
+        ],
+        "second": [
+          0,
+          0,
+          148,
+          112
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          0,
+          0,
+          148,
+          112
+        ]
+      }
+    },
+    {
+      "type": "synthetic-same-color",
+      "dpr": 2,
+      "opacity": 1,
+      "pixels": {
+        "first": [
+          0,
+          0,
+          149,
+          255
+        ],
+        "overlap": [
+          0,
+          0,
+          149,
+          255
+        ],
+        "second": [
+          0,
+          0,
+          149,
+          255
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          0,
+          0,
+          149,
+          255
+        ]
+      }
+    },
+    {
+      "type": "synthetic-different-colors",
+      "dpr": 2,
+      "pixels": {
+        "first": [
+          0,
+          0,
+          148,
+          112
+        ],
+        "overlap": [
+          207,
+          43,
+          43,
+          112
+        ],
+        "second": [
+          207,
+          43,
+          43,
+          112
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          207,
+          43,
+          43,
+          112
+        ]
+      }
+    },
+    {
+      "type": "synthetic-css-alpha",
+      "dpr": 2,
+      "pixels": {
+        "first": [
+          0,
+          0,
+          150,
+          56
+        ],
+        "overlap": [
+          0,
+          0,
+          150,
+          56
+        ],
+        "second": [
+          0,
+          0,
+          150,
+          56
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          0,
+          0,
+          150,
+          56
+        ]
+      }
+    },
+    {
+      "type": "synthetic-world-union",
+      "dpr": 2,
+      "pixels": {
+        "first": [
+          248,
+          249,
+          251,
+          214
+        ],
+        "overlap": [
+          248,
+          249,
+          251,
+          214
+        ],
+        "second": [
+          248,
+          249,
+          251,
+          214
+        ],
+        "uncoveredHole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "coveredHole": [
+          248,
+          249,
+          251,
+          214
+        ]
+      }
+    },
+    {
+      "type": "real-geometry",
+      "variant": "current",
+      "dpr": 2,
+      "samples": [
+        {
+          "name": "overlap-0",
+          "lat": 22.127485,
+          "lng": 113.54909933074396,
+          "x": 559,
+          "y": 554
+        },
+        {
+          "name": "overlap-1",
+          "lat": 22.196505,
+          "lng": 113.53331771403492,
+          "x": 513,
+          "y": 337
+        },
+        {
+          "name": "zhuhai-only",
+          "lat": 22.287825731608795,
+          "lng": 113.49288940429689,
+          "x": 395,
+          "y": 50
+        },
+        {
+          "name": "macao-only",
+          "lat": 22.212516920790357,
+          "lng": 113.54953765869142,
+          "x": 560,
+          "y": 287
+        }
+      ],
+      "both": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        }
+      ],
+      "zhuhai": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        }
+      ],
+      "macao": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        }
+      ],
+      "neutral": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              248,
+              249,
+              251,
+              214
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "fractional-zoom",
+      "dpr": 2,
+      "zoom": 11.5,
+      "pixels": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "fractional-zoom",
+      "dpr": 2,
+      "zoom": 12,
+      "pixels": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "wrapped-world",
+      "dpr": 2,
+      "pixels": [
+        {
+          "name": "overlap-0",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "overlap-1",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "zhuhai-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        },
+        {
+          "name": "macao-only",
+          "pixels": [
+            [
+              128,
+              128,
+              201,
+              232
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "pageErrors": []
+}

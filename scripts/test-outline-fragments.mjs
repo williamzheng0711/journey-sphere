@@ -62,7 +62,8 @@ const originalFill=CanvasRenderingContext2D.prototype.fill;CanvasRenderingContex
 // Bitmap copies replace visible tile pixels during an in-place refresh. Track
 // their source paths, and discard old paths whenever a canvas bitmap is reset.
 for(const property of ['width','height']){const descriptor=Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype,property);Object.defineProperty(HTMLCanvasElement.prototype,property,{...descriptor,set(value){descriptor.set.call(this,value);this.__journeyDrawnPaths=new Set()}})}
-const originalDrawImage=CanvasRenderingContext2D.prototype.drawImage;CanvasRenderingContext2D.prototype.drawImage=function(source,...args){const result=originalDrawImage.call(this,source,...args);if(this.globalCompositeOperation==='copy')this.canvas.__journeyDrawnPaths=new Set(source.__journeyDrawnPaths||[]);return result};
+const originalClear=CanvasRenderingContext2D.prototype.clearRect;CanvasRenderingContext2D.prototype.clearRect=function(x,y,width,height){const result=originalClear.call(this,x,y,width,height);if(x===0&&y===0&&width>=this.canvas.width&&height>=this.canvas.height)this.canvas.__journeyDrawnPaths=new Set();return result};
+const originalDrawImage=CanvasRenderingContext2D.prototype.drawImage;CanvasRenderingContext2D.prototype.drawImage=function(source,...args){const result=originalDrawImage.call(this,source,...args);if(this.globalCompositeOperation==='copy')this.canvas.__journeyDrawnPaths=new Set(source.__journeyDrawnPaths||[]);else if(this.globalCompositeOperation==='source-over'&&this.globalAlpha>0)for(const path of source.__journeyDrawnPaths||[])(this.canvas.__journeyDrawnPaths||=new Set()).add(path);return result};
 const originalFetch=window.fetch;window.fetch=function(input,options){const url=String(input instanceof Request?input.url:input);if(url.includes('/data/outlines/'))window.__requests.push({url,time:performance.now(),firstPaint:window.__firstPaint});return originalFetch.call(this,input,options)};
 </script>`;
 function fixture(scenario, unselected = false) {
@@ -227,7 +228,7 @@ async function drawnOutlineTiles(page, finePath) {
     return { visible: tiles.length, coarse: tiles.filter(canvas => canvas.__journeyDrawnPaths?.has(window.__coarse.d)).length, fine: tiles.filter(canvas => canvas.__journeyDrawnPaths?.has(finePath)).length };
   }, finePath);
 }
-async function clickAndRestore(page, scenario, point, touch = false) {
+async function inspectAndRestore(page, scenario, point, touch = false) {
   if (touch) await page.touchscreen.tap(point.x, point.y);
   else {
     await page.mouse.move(point.x, point.y);
@@ -235,10 +236,12 @@ async function clickAndRestore(page, scenario, point, touch = false) {
     assert.equal(await page.locator('.leaflet-tooltip').innerText(), scenario.canonical.name, `${scenario.key}: real hover preserves the region label`);
     await page.mouse.click(point.x, point.y);
   }
-  await waitFor(page, id => !window.journeySphere.getVisited().includes(id), scenario.canonical.id);
-  assert.deepEqual(await page.evaluate(() => window.journeySphere.getVisited()), selectedIds.filter(id => id !== scenario.canonical.id), `${scenario.key}: click toggles exactly the canonical selected region`);
+  assert.deepEqual(await page.evaluate(() => window.journeySphere.getVisited()), selectedIds, `${scenario.key}: ${touch ? 'tap' : 'click'} preserves visits`);
+  const remainingIds = selectedIds.filter(id => id !== scenario.canonical.id);
+  await page.evaluate(ids => window.journeySphere.setVisited(ids), remainingIds);
+  assert.deepEqual(await page.evaluate(() => window.journeySphere.getVisited()), remainingIds, `${scenario.key}: programmatic update removes exactly the canonical selected region`);
   await page.evaluate(ids => window.journeySphere.setVisited(ids), selectedIds);
-  await checkSelection(page, `${scenario.key} restored after real ${touch ? 'touch' : 'click'}`);
+  await checkSelection(page, `${scenario.key} restored after programmatic visit update`);
   if (!touch) await page.mouse.move(10, 10);
   await frames(page);
 }
@@ -318,7 +321,7 @@ try {
     await ready(page, `${scenario.key} completed`);
     const after = await paintedPixel(page, point);
     if (point.coarseUnderlay) assert.deepEqual(after, before, `${scenario.key}: deep selected land keeps its actual canvas palette`);
-    await clickAndRestore(page, scenario, point);
+    await inspectAndRestore(page, scenario, point);
     if (scenario.key === 'aleutian') {
       assert.equal(await page.evaluate(() => { const bounds = window.journeySphere.map.getBounds(); return bounds.getWest() < 180 && bounds.getEast() > 180; }), true, 'Aleutian viewport genuinely crosses the dateline');
       await pan(page, scenario, scenario.zoom, 720);
@@ -326,7 +329,7 @@ try {
       assert.deepEqual(wrappedRequired, required, 'two world wraps select the same fragment identities');
       await ready(page, 'Aleutian two-world-wrap coverage');
       const wrappedPoint = await selectedPoint(page, scenario);
-      await paintedPixel(page, wrappedPoint); await clickAndRestore(page, scenario, wrappedPoint);
+      await paintedPixel(page, wrappedPoint); await inspectAndRestore(page, scenario, wrappedPoint);
       assert.ok(wrappedPoint.lng > 720, 'real hit point remains two worlds east');
     }
     const screenshot = `${scenario.key}-complete.png`;
@@ -386,7 +389,7 @@ try {
   const retryPoint = await selectedPoint(retry, scenarios[2]); await paintedPixel(retry, retryPoint);
   failPacific = false; holdOldAlaska = false; await retryGate.release();
   await ready(retry, 'explicit Pacific retry');
-  await paintedPixel(retry, retryPoint); await clickAndRestore(retry, scenarios[2], retryPoint);
+  await paintedPixel(retry, retryPoint); await inspectAndRestore(retry, scenarios[2], retryPoint);
   await pan(retry, scenarios[2], 4); await ready(retry, 'zoom4 after exact Pacific');
   assert.ok(retryGate.calls.filter(call => call.id === 3).length >= 2, 'only failed work needs a fresh Pacific request');
   const expectedErrors = (await sceneState(retry)).errors;
@@ -428,10 +431,10 @@ try {
   const mobile = await newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await open(mobile, scenarios[2]); await ready(mobile, 'mobile Pacific');
   const mobilePoint = await selectedPoint(mobile, scenarios[2]); await paintedPixel(mobile, mobilePoint);
-  await clickAndRestore(mobile, scenarios[2], mobilePoint, true);
+  await inspectAndRestore(mobile, scenarios[2], mobilePoint, true);
   await pan(mobile, scenarios[3], 9, 720); await ready(mobile, 'mobile wrapped Aleutian');
   const mobileWrapped = await selectedPoint(mobile, scenarios[3]); await paintedPixel(mobile, mobileWrapped);
-  await clickAndRestore(mobile, scenarios[3], mobileWrapped, true);
+  await inspectAndRestore(mobile, scenarios[3], mobileWrapped, true);
   assert.deepEqual((await sceneState(mobile)).errors, [], 'mobile touch and wrapping have no errors');
   await mobile.screenshot({ path: path.join(output, 'mobile-wrapped.png') });
   checks.push({ case: 'mobile DPR2 real touch, Pacific→Aleutian two-world-wrap pan', mobilePoint, mobileWrapped, screenshot: 'mobile-wrapped.png' });
@@ -456,7 +459,7 @@ try {
   assert.ok(above.fine > 0, 'cached USA detail paints without a fresh download after animated zoom returns4');
   await pan(fractional, scenarios[3], 8.5, 720); await ready(fractional, 'fractional wrapped fragment arrival');
   const fractionalPoint = await selectedPoint(fractional, scenarios[3]);
-  await paintedPixel(fractional, fractionalPoint); await clickAndRestore(fractional, scenarios[3], fractionalPoint);
+  await paintedPixel(fractional, fractionalPoint); await inspectAndRestore(fractional, scenarios[3], fractionalPoint);
   assert.ok(fractionalPoint.lng > 720, 'fractional wrapped hit remains two worlds east');
   checks.push({ case: 'animated fractional minZoom crossing both directions and wrapped8.5 detail-arrival redraw', below, above, fractionalPoint });
   await fractional.close();

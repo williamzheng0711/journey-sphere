@@ -23,7 +23,7 @@ const bootstrap = {
   CHN: {
     ...china,
     // Keep the bootstrap small while preserving the atlas identity and the
-    // selected region needed for first paint and the click interaction.
+    // selected region needed for first paint and programmatic visit updates.
     features: [shanghai], admin1: [],
   },
   SGP: { ...singapore, features: [singaporeRegion], admin1: [] },
@@ -117,17 +117,9 @@ try {
   assert.ok(first.requests.length > 0, 'full country details should be pending');
   console.log('Bootstrap ready while country details are held');
 
-  const clickPoint = await page.evaluate(() => {
-    const point = window.journeySphere.map.latLngToContainerPoint([31.1, 121.4]);
-    const rect = document.querySelector('#map').getBoundingClientRect();
-    return { x: point.x + rect.left, y: point.y + rect.top };
-  });
-  await page.mouse.click(clickPoint.x, clickPoint.y);
-  await waitFor(page, () => !window.journeySphere.getVisited().includes('CHN:ADM2:310000'));
-  assert.deepEqual(await page.evaluate(() => window.journeySphere.getVisited()), [visited[1]], 'clicking Shanghai should toggle it off');
-  console.log('Click changed selection');
   await page.evaluate(id => window.journeySphere.setVisited([id]), visited[1]);
-  assert.deepEqual(await page.evaluate(() => window.journeySphere.getVisited()), [visited[1]]);
+  assert.deepEqual(await page.evaluate(() => window.journeySphere.getVisited()), [visited[1]], 'programmatic visit updates should work while detail requests are blocked');
+  console.log('Programmatic update changed selection');
   await page.evaluate(word => window.journeySphere.setCodeword(word), originalWord);
   assert.deepEqual(await page.evaluate(() => window.journeySphere.getVisited()), visited, 'codeword updates should work while detail requests are blocked');
   first.release();

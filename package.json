@@ -47,13 +47,15 @@
     "build:fragments": "node scripts/build-outline-fragments.mjs",
     "build:embed": "node scripts/build-embed-data.mjs",
     "test:embed": "node scripts/test-embed.mjs",
+    "test:names": "node scripts/test-place-names.mjs",
     "test:refinement": "node scripts/test-embed-refinement.mjs",
     "test:fragments": "node scripts/test-outline-fragments.mjs",
     "build:engine": "node scripts/build-leaflet-engine.mjs",
     "check:engine": "node scripts/build-leaflet-engine.mjs --check",
     "test:embed:startup": "node scripts/test-embed-startup.mjs",
     "test:embed:updates": "node scripts/test-embed-updates.mjs",
-    "test:flashing": "node scripts/test-map-flashing.mjs"
+    "test:flashing": "node scripts/test-map-flashing.mjs",
+    "test:fills": "node scripts/test-map-fills.mjs"
   },
   "engines": {
     "node": ">=20"

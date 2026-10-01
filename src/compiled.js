@@ -298,9 +298,7 @@ export async function createCompiledJourneySphere(container, options = {}) {
     map.attributionControl?.addAttribution('JourneySphere | <a href="https://www.naturalearthdata.com/">Natural Earth</a> | <a href="https://www.geoboundaries.org/">geoBoundaries</a>');
     const status = L.control({ position: 'bottomleft' });
     let statusElement;
-    const readyText = options.interactive === false
-      ? 'Move over a visited colored region to see its name.'
-      : 'Move over a visited region to see its name. Click to toggle your visit.';
+    const readyText = 'Hover over a visited region or long press it to see its name.';
     status.onAdd = () => {
       statusElement = L.DomUtil.create('div', 'journeysphere-status');
       statusElement.setAttribute('role', 'status');
@@ -416,12 +414,6 @@ export async function createCompiledJourneySphere(container, options = {}) {
       colorFor: code => options.colors?.[code] || manifest.countries[code]?.color || '#64748b',
       fillOpacity: opacity,
       labels: (id, record) => typeof labels === 'function' ? labels(id, record) : labels[id] || record.name || id,
-      interactive: options.interactive !== false,
-      onToggle(id) {
-        const next = new Set(visited);
-        if (next.has(id)) next.delete(id); else next.add(id);
-        update([...next]).catch(emitError);
-      },
       onError: emitError,
       getOutline: (code, zoom) => outlineDetail?.get(code, zoom),
       outlineRegionIds: Object.values(manifest.outlines?.countries || {}).flatMap(entry => entry.regionIds || []),

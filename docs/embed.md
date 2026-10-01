@@ -49,6 +49,12 @@ and `zoom` attributes override the corresponding part of that view. Set
 `journey-error` events. Removal cancels outstanding requests and destroys the map;
 reconnecting initializes it again.
 
+Hover over a visited location with a mouse to display its name. On a phone,
+press and hold a visited location for about half a second; releasing the finger
+hides the name. Clicking or tapping the map keeps the visit list unchanged.
+Update visits through `element.places`, `journey.setVisited()`, or
+`journey.setCodeword()`.
+
 Update `element.places` at any time and await the new `element.ready`. Place lookup
 and selected-region downloads happen while the current map remains usable. A
 successful update reuses the map, updates its labels and selection, and fits the
@@ -59,7 +65,7 @@ same places again to retry a failed update. Changing `data-base-url` prepares a
 replacement map before removing the working one.
 
 Changing `center` moves the existing map and keeps its current zoom; changing
-`zoom` keeps its current center. Both preserve interactive visit changes and
+`zoom` keeps its current center. Both preserve programmatic visit changes and
 require no place lookup or selected-region download. Removing either attribute
 restores that part of the automatic view. If a place update is pending, it uses
 the latest view attributes when it commits. Invalid coordinates or zoom values
@@ -69,7 +75,7 @@ leave the current map usable and reject `ready`. A successful update emits
 `element.reset()` restores the most recently applied places. Each successful
 place or view-attribute update makes its resulting view the new reset view,
 including the center or zoom retained by a view-only update. Later
-panning, zooming with the map controls, and toggling visits do not change that
+panning, zooming with the map controls, and programmatic visit changes do not change that
 reset baseline.
 
 First display uses a small overview plus exact selected-region chunks. The
@@ -79,11 +85,14 @@ country outlines at zoom 4–5.5, and full outlines at zoom 6 and above. Moving 
 cancels obsolete requests. Cached detail stays visible during a further upgrade.
 Boundary and visit updates preserve the displayed map throughout repainting;
 completed downloads that leave the visible geometry unchanged skip repainting.
+Visited shading has uniform opacity where source boundaries overlap, including
+Zhuhai and Macao. The renderer combines fills before applying opacity, preserving
+each region's holes and existing color order without changing atlas boundaries.
 The nearest country outline gets a head start; once it finishes, or after two
 seconds, other visible countries load with up to three requests at a time.
 No full administrative country shard is required for first display, panning,
-zooming or selected-region clicks. Call `journey.loadDetails()` when complete
-editable administrative context is needed.
+zooming or inspecting selected-region names. Call `journey.loadDetails()` when
+complete administrative context is needed.
 
 Await `journey.loadOutlineDetails()` after changing the view to wait for that
 view's refinement, including a retry after a download failure. A failure leaves
@@ -95,9 +104,11 @@ Chromium, or set `PLAYWRIGHT_CHANNEL=chrome` for an installed Google Chrome:
 
 ```sh
 npm run check
+PLAYWRIGHT_MODULE=/path/to/playwright npm run test:names
 PLAYWRIGHT_MODULE=/path/to/playwright npm run test:embed
 PLAYWRIGHT_MODULE=/path/to/playwright npm run test:embed:updates
 PLAYWRIGHT_MODULE=/path/to/playwright npm run test:flashing
+PLAYWRIGHT_MODULE=/path/to/playwright npm run test:fills
 PLAYWRIGHT_MODULE=/path/to/playwright node scripts/test-embed-refinement.mjs
 ```
 

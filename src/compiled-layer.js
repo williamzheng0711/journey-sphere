@@ -1,3 +1,5 @@
+import { bindLongPress } from './place-interactions.js';
+
 const WORLD_SHIFT_OFFSETS = [-1, 0, 1];
 
 /**
@@ -9,7 +11,7 @@ export function createCompiledLayer(L, options) {
   if (!L?.GridLayer?.extend) throw new TypeError('JourneySphere compiled renderer requires Leaflet GridLayer.');
   const {
     world, extent, getCountries, getVisited, colorFor, fillOpacity = 0.44,
-    labels, interactive = true, onToggle, onError, getOutline = () => null, outlineRegionIds = [],
+    labels, onError, getOutline = () => null, outlineRegionIds = [],
   } = options || {};
   if (!world || !Array.isArray(world.features)) throw new TypeError('Compiled renderer requires world features.');
   if (!Number.isFinite(extent) || extent <= 0) throw new RangeError('Compiled renderer extent must be positive.');
@@ -102,23 +104,35 @@ export function createCompiledLayer(L, options) {
     if (!shifts.length) return;
     for (const shift of shifts) {
       context.save();
-      context.setTransform(scale * ratio, 0, 0, scale * ratio,
-        -coords.x * size.x * ratio, -coords.y * size.y * ratio);
-      context.translate(shift * extent, 0);
-      if (style.fill) {
-        context.fillStyle = style.fill;
-        context.globalAlpha = style.fillOpacity;
-        context.fill(pathFor(record), 'evenodd');
-      }
-      if (style.stroke !== false) {
-        context.lineWidth = style.weight / scale;
-        context.lineCap = 'round';
-        context.lineJoin = 'round';
-        context.strokeStyle = style.color;
-        context.globalAlpha = style.opacity ?? 1;
-        context.stroke(pathFor(record, true, zoom));
-      }
-      context.restore();
+      try {
+        context.setTransform(scale * ratio, 0, 0, scale * ratio,
+          -coords.x * size.x * ratio, -coords.y * size.y * ratio);
+        context.translate(shift * extent, 0);
+        if (style.fill) {
+          const path = pathFor(record);
+          if (style.replaceFill) {
+            // A later region owns its fill, including a custom color's alpha.
+            // Clear only this geometry so overlapping translucent CSS colors do
+            // not accumulate inside the shared fill buffer either.
+            context.globalAlpha = 1;
+            context.globalCompositeOperation = 'destination-out';
+            context.fillStyle = '#000';
+            context.fill(path, 'evenodd');
+            context.globalCompositeOperation = 'source-over';
+          }
+          context.fillStyle = style.fill;
+          context.globalAlpha = style.fillOpacity;
+          context.fill(path, 'evenodd');
+        }
+        if (style.stroke !== false) {
+          context.lineWidth = style.weight / scale;
+          context.lineCap = 'round';
+          context.lineJoin = 'round';
+          context.strokeStyle = style.color;
+          context.globalAlpha = style.opacity ?? 1;
+          context.stroke(pathFor(record, true, zoom));
+        }
+      } finally { context.restore(); }
     }
   }
 
@@ -267,23 +281,17 @@ export function createCompiledLayer(L, options) {
       const adminRecords = state.adminRecords;
       const activeWorld = feature => state.activeCountries.has(feature.countryCode);
       // Neighboring fills must finish before shared boundary strokes.
-      for (const feature of state.worldRecords) {
-        drawRecord(context, feature, coords, coords.z, size, ratio, {
-          fill: '#f8fafc', fillOpacity: 0.84, stroke: false,
-        });
-      }
+      this._drawCompiledFill(context, state.worldRecords, coords, size, ratio, 0.84, () => '#f8fafc');
       for (const feature of state.worldRecords) {
         drawRecord(context, feature, coords, coords.z, size, ratio, {
           color: activeWorld(feature) ? '#8795a6' : zoom >= 6 ? '#acb8c5' : '#c1cbd5',
           weight: activeWorld(feature) ? (zoom >= 6 ? 0.95 : 0.8) : (zoom >= 6 ? 0.65 : 0.45),
         });
       }
-      for (const feature of countryRecords) {
-        if (!state.selected(feature)) continue;
-        drawRecord(context, feature, coords, coords.z, size, ratio, {
-          fill: colorFor?.(feature.countryCode) || '#64748b', fillOpacity, stroke: false,
-        });
-      }
+      // Different boundary sources can overlap (for example Zhuhai and Macao).
+      // Composite the completed visit fill once so overlap is not a darker shade.
+      this._drawCompiledFill(context, countryRecords.filter(state.selected), coords, size, ratio,
+        fillOpacity, feature => colorFor?.(feature.countryCode) || '#64748b', true);
       for (const feature of adminRecords) {
         if (!state.activeCountries.has(feature.countryCode)) continue;
         const activeParent = state.activeParents.has(parentKey(feature));
@@ -302,6 +310,34 @@ export function createCompiledLayer(L, options) {
       if (!this._compiledPaintedWorld) this._compiledPaintedWorld = state.worldRecords;
       else if (state.worldRecords.some((record, index) => record !== this._compiledPaintedWorld[index])) this._compiledMixedOutlines = true;
     },
+    _drawCompiledFill(context, records, coords, size, ratio, opacity, color, replaceFill = false) {
+      if (!records.length || opacity === 0) return;
+      // Separate from the retained-tile repaint canvas, which is this pass's
+      // destination. One tile-sized buffer is reused for both fill passes.
+      const fill = this._compiledFillCanvas || (this._compiledFillCanvas = document.createElement('canvas'));
+      const width = Math.round(size.x * ratio);
+      const height = Math.round(size.y * ratio);
+      if (fill.width !== width) fill.width = width;
+      if (fill.height !== height) fill.height = height;
+      const fillContext = tileContext(fill);
+      fillContext.save();
+      try {
+        fillContext.setTransform(1, 0, 0, 1, 0, 0);
+        fillContext.clearRect(0, 0, width, height);
+      } finally { fillContext.restore(); }
+      for (const record of records) {
+        drawRecord(fillContext, record, coords, coords.z, size, ratio, {
+          fill: color(record), fillOpacity: 1, stroke: false, replaceFill,
+        });
+      }
+      context.save();
+      try {
+        context.setTransform(1, 0, 0, 1, 0, 0);
+        context.globalAlpha = opacity;
+        context.globalCompositeOperation = 'source-over';
+        context.drawImage(fill, 0, 0);
+      } finally { context.restore(); }
+    },
     onAdd(map) {
       L.GridLayer.prototype.onAdd.call(this, map);
       this._compiledMap = map;
@@ -316,12 +352,17 @@ export function createCompiledLayer(L, options) {
       map.on('moveend', this._refreshCompiledView, this);
       map.on('zoomend', this._refreshCompiledView, this);
       map.on('resize', this._refreshCompiledView, this);
-      if (interactive) map.on('click', this._compiledClick, this);
       this._compiledTooltip = L.tooltip?.({ sticky: true });
+      this._compiledLongPress = bindLongPress(map, {
+        resolve: latlng => this._hitRecord({ latlng }),
+        show: (record, latlng) => this._showCompiledName(record, latlng),
+        hide: () => this._clearCompiledHover(),
+      });
     },
     onRemove(map) {
       this._cancelCompiledRefresh();
-      map.off('click', this._compiledClick, this);
+      this._compiledLongPress?.destroy();
+      this._compiledLongPress = null;
       map.off('mousemove', this._compiledHover, this);
       map.off('mouseout', this._clearCompiledHover, this);
       map.off('movestart', this._clearCompiledHover, this);
@@ -336,6 +377,7 @@ export function createCompiledLayer(L, options) {
       this._compiledHitCanvas = null;
       this._compiledHitContext = null;
       this._compiledRepaintCanvas = null;
+      this._compiledFillCanvas = null;
       this._compiledTooltip = null;
       this._compiledLabel = null;
       paths = new WeakMap();
@@ -356,8 +398,9 @@ export function createCompiledLayer(L, options) {
       const canvas = this._compiledHitCanvas || (this._compiledHitCanvas = document.createElement('canvas'));
       const context = this._compiledHitContext || (this._compiledHitContext = tileContext(canvas));
       const records = this._sceneAt(map.getZoom()).activeRecords;
+      const visited = visitedSet();
       for (const record of records) {
-        if (!record.bounds) continue;
+        if (!visited.has(record.id) || !record.bounds) continue;
         const [minX, minY, maxX, maxY] = record.bounds;
         for (const shift of WORLD_SHIFT_OFFSETS) {
           const shiftedX = x + shift * extent;
@@ -368,13 +411,11 @@ export function createCompiledLayer(L, options) {
       }
       return null;
     },
-    _compiledClick(event) {
-      const record = this._hitRecord(event);
-      if (!record || !interactive || typeof onToggle !== 'function') return;
-      try { Promise.resolve(onToggle(record.id)).catch(reportError); } catch (error) { reportError(error); }
-    },
     _compiledHover(event) {
-      const record = this._hitRecord(event);
+      if (this._compiledLongPress?.shouldIgnoreHover(event)) return;
+      this._showCompiledName(this._hitRecord(event), event.latlng);
+    },
+    _showCompiledName(record, latlng) {
       const visited = visitedSet();
       if (!record || !visited.has(record.id) || !this._compiledTooltip || !this._compiledMap) {
         this._clearCompiledHover();
@@ -382,10 +423,11 @@ export function createCompiledLayer(L, options) {
       }
       const label = this._compiledLabel || (this._compiledLabel = document.createElement('span'));
       label.textContent = String(labelFor(record));
-      this._compiledTooltip.setLatLng(event.latlng).setContent(label).addTo(this._compiledMap);
+      this._compiledTooltip.setLatLng(latlng).setContent(label).addTo(this._compiledMap);
     },
     refresh() {
       this._cancelCompiledRefresh();
+      this._compiledLongPress?.cancel();
       this._clearCompiledHover();
       this._compiledScene = null;
       if (this._compiledMap) this.redraw();

@@ -8,7 +8,7 @@ import { parseArgs, isDeepStrictEqual } from 'node:util';
 
 const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
 const digest = value => createHash('sha256').update(value).digest('hex');
-const sourceFiles = ['src/compiled.js', 'src/compiled-layer.js', 'src/outline-detail.js', 'src/state.js', 'src/style.css', 'LICENSE', 'README.md', 'data/README.md'];
+const sourceFiles = ['src/compiled.js', 'src/compiled-layer.js', 'src/place-interactions.js', 'src/outline-detail.js', 'src/state.js', 'src/style.css', 'LICENSE', 'README.md', 'data/README.md'];
 
 /** Build a static deployment from canonical map sources and a consumer's visits. */
 export async function exportStatic({ recordPath, outputDir, fallbackDataUrl }) {

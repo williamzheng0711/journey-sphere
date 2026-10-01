@@ -291,7 +291,7 @@ async function screenshot(page, filename) {
   await frames(page);
   await page.locator('journey-sphere').screenshot({ path: path.join(output, filename) });
 }
-async function clickRefinedHkg(page, coarsePath, { touch = false } = {}) {
+async function inspectRefinedHkg(page, coarsePath, { touch = false } = {}) {
   const point = await page.evaluate(coarsePath => {
     const api = document.querySelector('journey-sphere').journey;
     let layer;
@@ -324,9 +324,11 @@ async function clickRefinedHkg(page, coarsePath, { touch = false } = {}) {
     assert.equal(await tooltip.innerText(), 'Hong Kong', 'refined HKG land shows the correct hover name');
     await page.mouse.click(point.x, point.y);
   }
-  await page.waitForFunction(() => document.querySelector('journey-sphere').journey.getVisited().length === 0);
+  assert.equal(await page.evaluate(() => document.querySelector('journey-sphere').journey.getCodeword()), originalWord, `${touch ? 'tap' : 'click'} on refined land preserves visits`);
+  await page.evaluate(() => document.querySelector('journey-sphere').journey.setVisited([]));
+  assert.equal(await page.evaluate(() => document.querySelector('journey-sphere').journey.getVisited().length), 0, 'programmatic visit update clears refined HKG');
   await page.evaluate(word => document.querySelector('journey-sphere').journey.setCodeword(word), originalWord);
-  assert.equal(await page.evaluate(() => document.querySelector('journey-sphere').journey.getCodeword()), originalWord, 'fine-only interaction restores the same visit codeword');
+  assert.equal(await page.evaluate(() => document.querySelector('journey-sphere').journey.getCodeword()), originalWord, 'visit update after fine-only interaction restores the same codeword');
   if (!touch) await page.mouse.move(10, 10);
   await frames(page);
 }
@@ -440,7 +442,7 @@ try {
       assert.notEqual(fine.selected, coarse.selected, 'HKG ADM0 selection is refined');
       assert.equal(fine.selected, fine.world, 'HKG selected coastline and world land align');
       assert.ok(fine.parent === undefined || fine.parent === fine.world, 'any HKG parent coastline aligns with detailed land');
-      await clickRefinedHkg(current.page, coarse.selected);
+      await inspectRefinedHkg(current.page, coarse.selected);
     } else assert.equal(fine.selected, coarse.selected, `${scenario.key}: canonical ADM2 geometry is preserved`);
     await screenshot(current.page, `${scenario.key}-current.png`);
     await current.page.evaluate(async word => {
@@ -522,7 +524,7 @@ try {
   const mobileTiming = await refine(mobile.page, scenarios[0]);
   const mobileFine = await scene(mobile.page, 'HKG', 'HKG:ADM0:HKG');
   assert.equal(mobileFine.world, mobileFine.selected, 'mobile detailed land is aligned');
-  await clickRefinedHkg(mobile.page, mobileCoarse.selected, { touch: true });
+  await inspectRefinedHkg(mobile.page, mobileCoarse.selected, { touch: true });
   await screenshot(mobile.page, 'hong-kong-mobile.png');
   await mobile.page.evaluate(() => document.querySelector('journey-sphere').journey.destroy());
   assert.equal(await mobile.page.evaluate(() => document.querySelector('journey-sphere').shadowRoot.querySelectorAll('canvas').length), 0, 'destroy removes mobile map tiles');
@@ -562,7 +564,7 @@ try {
     }), '',
     ...report.refinement.map(item => `- ${item.key}: detailed world ${item.coarseWorldCharacters.toLocaleString()} → ${item.fineWorldCharacters.toLocaleString()} path characters; visit IDs and codeword preserved; no full country downloads.`), '',
     ...(report.failureRetry ? ['Optional outline failure keeps the initial map usable. Explicit retry succeeds and preserves selected visits.', 'Mobile detailed land remains aligned and destroy removes all tiles.', ''] : []),
-    ...(report.mobileRefinement ? [`Cold mobile zoom-in to fully aligned Hong Kong detail: ${(report.mobileRefinement.timingThrottled.refinementDurationMs / 1000).toFixed(2)} s. A real tap on newly detailed land toggles the visit and the original codeword restores it.`, ''] : []),
+    ...(report.mobileRefinement ? [`Cold mobile zoom-in to fully aligned Hong Kong detail: ${(report.mobileRefinement.timingThrottled.refinementDurationMs / 1000).toFixed(2)} s. A real tap on newly detailed land preserves the visit; a programmatic update clears it and the original codeword restores it.`, ''] : []),
     ...(report.errors.length ? ['```', ...report.errors, '```', ''] : []),
     ...(consumerHtml ? ['The sibling homepage is served from an in-memory copy with only the remote embed URL replaced. Its files are not modified. The test scrolls its below-the-fold map into view immediately when ready. External fonts are excluded from this local repeatable performance check.'] : ['This run measures standalone JourneySphere embeds; no consumer website is included.']),
     'These results measure the browser loader and compressed transfer; production CDN geography and TLS are not simulated.', '',

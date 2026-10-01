@@ -29,6 +29,7 @@ test('static export preserves exact selected geometry, canonical runtime and rep
     const startup = JSON.parse(await readFile(join(outputDir, 'data/startup.json')));
     assert.deepEqual(startup.countries.CHN.features, [selected]);
     assert.deepEqual(await readFile(join(outputDir, 'src/compiled.js')), await readFile(new URL('../src/compiled.js', import.meta.url)));
+    assert.deepEqual(await readFile(join(outputDir, 'src/place-interactions.js')), await readFile(new URL('../src/place-interactions.js', import.meta.url)));
     const deployed = JSON.parse(await readFile(join(outputDir, 'data/compiled/manifest.json')));
     assert.equal(deployed.countries.CHN.file, manifest.countries.CHN.file);
     assert.equal(deployed.countries.USA.file, 'https://example.org/release/data/compiled/countries/USA.json');

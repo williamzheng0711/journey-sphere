@@ -33,38 +33,54 @@ function makeCanvas() {
   const calls = [];
   const saved = [];
   let width = 0; let height = 0;
+  const log = call => { calls.push(call); canvas.paintCalls.push(call); };
+  const colorAlpha = color => /^rgba\(/i.test(color || '') ? Number(color.slice(color.lastIndexOf(',') + 1, -1)) : 1;
   const context = {
     calls, globalAlpha: 1, globalCompositeOperation: 'source-over',
-    save() { calls.push(['save']); saved.push({ globalAlpha: this.globalAlpha, globalCompositeOperation: this.globalCompositeOperation }); },
-    restore() { calls.push(['restore']); Object.assign(this, saved.pop()); },
-    setTransform: (...args) => calls.push(['transform', ...args]), translate: (...args) => calls.push(['translate', ...args]),
-    clearRect(...args) { calls.push(['clear', ...args]); canvas.pixels = []; },
+    get saveDepth() { return saved.length; },
+    save() { log(['save']); saved.push({ globalAlpha: this.globalAlpha, globalCompositeOperation: this.globalCompositeOperation,
+      fillStyle: this.fillStyle, strokeStyle: this.strokeStyle }); },
+    restore() { log(['restore']); Object.assign(this, saved.pop()); },
+    setTransform: (...args) => log(['transform', ...args]), translate: (...args) => log(['translate', ...args]),
+    clearRect(...args) { canvas.pixels = []; canvas.paintCalls = []; log(['clear', ...args]); },
     fill(path, rule) {
-      calls.push(['fill', path, rule]);
-      canvas.pixels.push({ kind: 'fill', d: path.d, color: this.fillStyle, alpha: this.globalAlpha });
+      log(['fill', path, rule, this.globalAlpha, this.globalCompositeOperation, this.fillStyle]);
+      const alpha = this.globalAlpha * colorAlpha(this.fillStyle);
+      if (this.globalCompositeOperation === 'destination-out' || alpha === 1) {
+        // Identical paths represent a fully overlapping area in focused tests.
+        canvas.pixels = canvas.pixels.filter(pixel => pixel.kind !== 'fill' || pixel.d !== path.d);
+      }
+      if (this.globalCompositeOperation !== 'destination-out') {
+        canvas.pixels.push({ kind: 'fill', d: path.d, color: this.fillStyle, alpha });
+      }
     },
     stroke(path) {
-      calls.push(['stroke', path]);
+      log(['stroke', path]);
       canvas.pixels.push({ kind: 'stroke', d: path.d, color: this.strokeStyle, alpha: this.globalAlpha });
     },
     drawImage(source, x, y) {
-      calls.push(['drawImage', source, x, y, this.globalCompositeOperation, this.globalAlpha, source.calls.slice()]);
-      if (this.globalCompositeOperation === 'copy') canvas.pixels = source.pixels.slice();
-      else canvas.pixels.push(...source.pixels);
+      const sourceCalls = source.paintCalls.slice();
+      // Keep existing geometry/order assertions meaningful when fills happen in
+      // a detached buffer. Snapshot only its current bitmap, not earlier passes.
+      calls.push(...sourceCalls); canvas.paintCalls.push(...sourceCalls);
+      log(['drawImage', source, x, y, this.globalCompositeOperation, this.globalAlpha, sourceCalls]);
+      const pixels = source.pixels.map(pixel => ({ ...pixel, alpha: pixel.alpha * this.globalAlpha }));
+      if (this.globalCompositeOperation === 'copy') canvas.pixels = pixels;
+      else canvas.pixels.push(...pixels);
     },
-    isPointInPath: (...args) => { calls.push(['hit', ...args]); return true; },
+    isPointInPath: (...args) => { log(['hit', ...args]); return true; },
   };
   const canvas = {
-    style: {}, calls, pixels: [],
+    style: {}, calls, pixels: [], paintCalls: [], resizes: [],
     getContext: () => context,
   };
   const reset = () => {
-    canvas.pixels = []; saved.length = 0;
+    canvas.pixels = []; canvas.paintCalls = []; saved.length = 0;
     context.globalAlpha = 1; context.globalCompositeOperation = 'source-over';
   };
   Object.defineProperties(canvas, {
-    width: { get: () => width, set: value => { width = value; reset(); } },
-    height: { get: () => height, set: value => { height = value; reset(); } },
+    width: { get: () => width, set: value => { width = value; canvas.resizes.push(['width', value]); reset(); } },
+    height: { get: () => height, set: value => { height = value; canvas.resizes.push(['height', value]); reset(); } },
   });
   return canvas;
 }
@@ -352,17 +368,21 @@ test('redraw repaints retained wrapped levels without replacing loaded canvases 
       assert.equal(tile.parentNode, parent); assert.equal(tile.style.transform, 'translate3d(17px, 23px, 0)');
       const copy = tile.calls.findLast(call => call[0] === 'drawImage');
       assert.equal(copy[4], 'copy'); assert.equal(copy[5], 1);
-      const transform = copy[6].findLast(call => call[0] === 'transform');
       const coords = tile === first ? { x: 3, y: 4, z: 9 } : { x: 7, y: 8, z: 10 };
-      assert.deepEqual(transform, ['transform', 2 ** coords.z * 256 / (2 ** 24), 0, 0,
-        2 ** coords.z * 256 / (2 ** 24), -coords.x * 256, -coords.y * 256],
-      'saved wrapped coordinates retain their own zoom scale and repeated-world position');
+      const expected = ['transform', 2 ** coords.z * 256 / (2 ** 24), 0, 0,
+        2 ** coords.z * 256 / (2 ** 24), -coords.x * 256, -coords.y * 256];
+      assert.ok(copy[6].some(call => call[0] === 'transform' && call.every((value, index) => value === expected[index])),
+        'saved wrapped coordinates retain their own zoom scale and repeated-world position');
     }
-    assert.equal(canvases.length, 3, 'one detached scratch canvas serves every retained tile');
+    assert.equal(canvases.length, 4, 'one fill buffer and one repaint buffer serve every retained tile');
     const scratch = layer._compiledRepaintCanvas;
-    layer.redraw(); assert.equal(layer._compiledRepaintCanvas, scratch); assert.equal(canvases.length, 3);
+    const fill = layer._compiledFillCanvas;
+    assert.notEqual(scratch, fill, 'the fill source never aliases the current repaint destination');
+    layer.redraw(); assert.equal(layer._compiledRepaintCanvas, scratch); assert.equal(layer._compiledFillCanvas, fill);
+    assert.equal(canvases.length, 4);
     layer.onRemove(map);
     assert.equal(layer._compiledRepaintCanvas, null, 'removing the layer releases its detached repaint buffer');
+    assert.equal(layer._compiledFillCanvas, null, 'removing the layer releases its detached fill buffer');
   });
 });
 
@@ -409,15 +429,63 @@ test('failed scratch repaint preserves the attached canvas content and later val
     const state = { el: tile, coords: { x: 0, y: 0, z: 0 }, loaded: 1, active: true, current: true };
     layer._tiles = { tile: state };
     outline = { ...coarse, d: 'MFAIL' };
-    assert.doesNotThrow(() => layer.refresh());
+    for (let attempt = 0; attempt < 3; attempt++) {
+      assert.doesNotThrow(() => layer.refresh());
+      assert.equal(layer._compiledFillCanvas.getContext('2d').saveDepth, 0,
+        'repeated invalid paths cannot accumulate saved state in the same-sized fill buffer');
+    }
     assert.deepEqual(tile.pixels, content, 'failed detached drawing must never clear the visible canvas');
-    assert.equal(tile.calls.filter(call => call[0] === 'drawImage').length, 0);
-    assert.equal(layer._tiles.tile, state); assert.equal(errors.length, 1); assert.match(errors[0].message, /invalid outline path/);
+    assert.equal(tile.calls.filter(call => call[0] === 'drawImage' && call[4] === 'copy').length, 0);
+    assert.equal(layer._tiles.tile, state); assert.equal(errors.length, 3); assert.match(errors[0].message, /invalid outline path/);
     outline = { ...coarse, d: 'M0 0l16777215 0l0 16777215z' };
     layer.refresh();
     assert.ok(tile.pixels.some(pixel => pixel.d === outline.d));
     assert.equal(tile.pixels.some(pixel => pixel.d === coarse.d), false);
-    assert.equal(errors.length, 1); assert.equal(tile.calls.filter(call => call[0] === 'drawImage').length, 1);
+    assert.equal(errors.length, 3); assert.equal(tile.calls.filter(call => call[0] === 'drawImage' && call[4] === 'copy').length, 1);
+    layer.onRemove(map);
+  });
+});
+
+test('failed selection-mask erasure restores reusable context state and later repaint recovers', async () => {
+  await withBrowserCanvas(async () => {
+    const selected = record('AA:1', 'P1');
+    const errors = [];
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [record('world', null)] }, extent: 2 ** 24,
+      getCountries: () => [{ features: [selected] }], getVisited: () => [selected.id],
+      colorFor: () => '#123456', onError: error => errors.push(error),
+    });
+    const map = mapMock(); layer.onAdd(map); layer._map = map;
+    const tile = layer.createTile({ x: 0, y: 0, z: 0 });
+    layer._tiles = { tile: { el: tile, coords: { x: 0, y: 0, z: 0 }, loaded: 1, current: true } };
+    const content = tile.pixels.slice();
+    const fill = layer._compiledFillCanvas, context = fill.getContext('2d');
+    const originalFill = context.fill;
+    const originalStyle = context.fillStyle;
+    const originalResizes = fill.resizes.length;
+    context.fill = function (...args) {
+      originalFill.apply(this, args);
+      if (this.globalCompositeOperation === 'destination-out') throw new Error('selection erase failed');
+    };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      assert.doesNotThrow(() => layer.refresh(), 'a failed mask is reported without replacing visible pixels');
+      assert.equal(layer._compiledFillCanvas, fill, 'the failed bitmap is reused rather than silently replaced');
+      assert.equal(fill.resizes.length, originalResizes, 'same-size retry cannot rely on canvas resizing to reset state');
+      assert.equal(context.saveDepth, 0, 'every failed draw balances its context save');
+      assert.equal(context.globalCompositeOperation, 'source-over', 'erase compositing cannot leak into a later world pass');
+      assert.equal(context.globalAlpha, 1); assert.equal(context.fillStyle, originalStyle);
+      assert.deepEqual(tile.pixels, content, 'partially erased detached pixels never reach the displayed tile');
+    }
+    assert.equal(errors.length, 3);
+    assert.ok(errors.every(error => error.message === 'selection erase failed'));
+    assert.equal(tile.calls.filter(call => call[0] === 'drawImage' && call[4] === 'copy').length, 0);
+    context.fill = originalFill;
+    layer.refresh();
+    assert.equal(errors.length, 3, 'a valid retry does not report another error');
+    assert.equal(context.saveDepth, 0); assert.equal(context.globalCompositeOperation, 'source-over');
+    assert.ok(tile.pixels.some(pixel => pixel.kind === 'fill' && pixel.color === '#f8fafc'), 'world fill recovers after erase failure');
+    assert.ok(tile.pixels.some(pixel => pixel.kind === 'fill' && pixel.color === '#123456'), 'selected color recovers on the same bitmap');
+    assert.equal(tile.calls.filter(call => call[0] === 'drawImage' && call[4] === 'copy').length, 1);
     layer.onRemove(map);
   });
 });
@@ -446,7 +514,136 @@ test('compiled layer draws world, active outlines, selected regions, and selecte
   });
 });
 
-test('compiled layer uses one lazy path per record and supports click, visited hover, refresh, and cleanup', async () => {
+test('overlapping world and selected records apply opacity once per complete fill pass', async () => {
+  await withBrowserCanvas(async () => {
+    const d = 'M10 10l30 0l0 30l-30 0z';
+    const shape = (id, countryCode) => ({ id, countryCode, d, bounds: [10, 10, 40, 40] });
+    const world = [shape('world-AA', 'AA'), shape('world-BB', 'BB')];
+    const selected = [shape('AA:1', 'AA'), shape('BB:1', 'BB')];
+    const original = JSON.stringify({ world, selected });
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: world }, extent: 100,
+      getCountries: () => [{ features: selected }], getVisited: () => selected.map(feature => feature.id),
+      colorFor: () => '#000095', fillOpacity: 0.44,
+    });
+    const tile = layer.createTile({ x: 0, y: 0, z: 0 });
+    const composites = tile.calls.filter(call => call[0] === 'drawImage');
+    assert.deepEqual(composites.map(call => [call[4], call[5]]), [['source-over', 0.84], ['source-over', 0.44]],
+      'neither world overlap nor selected overlap can apply the public opacity twice');
+    assert.equal(composites[0][1], composites[1][1], 'both passes share the reusable fill buffer');
+    assert.ok(composites.every(call => call[6].filter(operation => operation[0] === 'fill').every(operation => operation[3] === 1)),
+      'the completed mask receives opacity at composition rather than at each record');
+    const worldPixels = tile.pixels.filter(pixel => pixel.kind === 'fill' && pixel.color === '#f8fafc');
+    const selectedPixels = tile.pixels.filter(pixel => pixel.kind === 'fill' && pixel.color === '#000095');
+    assert.deepEqual(worldPixels.map(pixel => pixel.alpha), [0.84]);
+    assert.deepEqual(selectedPixels.map(pixel => pixel.alpha), [0.44], 'fully overlapping visits retain the ordinary selected shade');
+    assert.equal(JSON.stringify({ world, selected }), original, 'rendering never changes canonical paths or records');
+  });
+});
+
+test('a later overlapping country retains its own translucent CSS color without accumulating earlier alpha', async () => {
+  await withBrowserCanvas(async () => {
+    const d = 'M10 10l30 0l0 30l-30 0z';
+    const selected = ['AA', 'BB'].map(countryCode => ({ id: `${countryCode}:1`, countryCode, d, bounds: [10, 10, 40, 40] }));
+    const colors = { AA: 'rgba(18,52,86,0.5)', BB: 'rgba(200,30,40,0.25)' };
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [] }, extent: 100, getCountries: () => [{ features: selected }],
+      getVisited: () => selected.map(feature => feature.id), colorFor: code => colors[code], fillOpacity: 0.4,
+    });
+    const tile = layer.createTile({ x: 0, y: 0, z: 0 });
+    const pixels = tile.pixels.filter(pixel => pixel.kind === 'fill');
+    assert.deepEqual(pixels.map(pixel => [pixel.color, pixel.alpha]), [[colors.BB, 0.1]],
+      'the winning color alpha is multiplied by fillOpacity once; earlier country color is replaced');
+    const composite = tile.calls.find(call => call[0] === 'drawImage');
+    const erases = composite[6].filter(call => call[0] === 'fill' && call[4] === 'destination-out');
+    assert.equal(erases.length, 2, 'each record clears only its own overlap before taking ownership');
+    assert.ok(erases.every(call => call[2] === 'evenodd' && call[3] === 1 && call[5] === '#000'),
+      'geometry erasure is fully opaque even when the requested country color is translucent');
+    assert.equal(tile.getContext('2d').globalAlpha, 1);
+    assert.equal(tile.getContext('2d').globalCompositeOperation, 'source-over');
+  });
+});
+
+test('fill buffers preserve individual evenodd holes rather than combining overlapping records into an XOR path', async () => {
+  await withBrowserCanvas(async (_canvases, paths) => {
+    const first = { id: 'AA:1', countryCode: 'AA', bounds: [10, 10, 70, 70],
+      d: 'M10 10l60 0l0 60l-60 0z M20 20l10 0l0 10l-10 0z' };
+    const second = { id: 'AA:2', countryCode: 'AA', bounds: [40, 40, 90, 90],
+      d: 'M40 40l50 0l0 50l-50 0z M60 60l10 0l0 10l-10 0z' };
+    const selected = [first, second];
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [] }, extent: 100, getCountries: () => [{ features: selected }],
+      getVisited: () => selected.map(feature => feature.id), colorFor: () => '#123456',
+    });
+    const tile = layer.createTile({ x: 0, y: 0, z: 0 });
+    const composite = tile.calls.find(call => call[0] === 'drawImage');
+    const fills = composite[6].filter(call => call[0] === 'fill');
+    assert.deepEqual(fills.map(call => [call[1].d, call[2], call[4]]), [
+      [first.d, 'evenodd', 'destination-out'], [first.d, 'evenodd', 'source-over'],
+      [second.d, 'evenodd', 'destination-out'], [second.d, 'evenodd', 'source-over'],
+    ], 'each original ring set retains its own holes in both erase and color operations');
+    assert.deepEqual(paths.map(path => path.d), [first.d, second.d], 'no merged evenodd path can cancel the overlap into a false hole');
+  });
+});
+
+test('one fill buffer is cleared between passes, reused across tiles and resized only when pixel dimensions change', async () => {
+  await withBrowserCanvas(async canvases => {
+    const originalRatio = globalThis.devicePixelRatio;
+    globalThis.devicePixelRatio = 1;
+    try {
+      const world = record('world', null);
+      const selected = record('AA:1', 'P1');
+      const layer = createCompiledLayer(makeLeaflet(), {
+        world: { features: [world] }, extent: 2 ** 24, getCountries: () => [{ features: [selected] }],
+        getVisited: () => [selected.id], colorFor: () => '#123456',
+      });
+      const map = mapMock(); layer.onAdd(map);
+      assert.equal(layer._compiledFillCanvas, undefined, 'maps allocate no fill bitmap until their first tile paint');
+      const first = layer.createTile({ x: 0, y: 0, z: 0 });
+      const fill = layer._compiledFillCanvas;
+      assert.equal(canvases.length, 2, 'one tile and one detached fill bitmap');
+      assert.deepEqual(fill.resizes, [['width', 256], ['height', 256]]);
+      const second = layer.createTile({ x: 0, y: 0, z: 0 });
+      assert.equal(layer._compiledFillCanvas, fill); assert.equal(canvases.length, 3);
+      assert.equal(fill.resizes.length, 2, 'equal-size paints do not reset or reallocate the bitmap');
+      assert.equal(fill.calls.filter(call => call[0] === 'clear').length, 4, 'both passes start empty for every tile');
+      for (const tile of [first, second]) {
+        const [base, visits] = tile.calls.filter(call => call[0] === 'drawImage');
+        assert.ok(base[6].filter(call => call[0] === 'fill').every(call => call[5] === '#f8fafc'));
+        assert.ok(visits[6].filter(call => call[0] === 'fill').every(call => ['#000', '#123456'].includes(call[5])),
+          'selection mask contains no stale world fill from the previous pass');
+      }
+      globalThis.devicePixelRatio = 2;
+      layer.createTile({ x: 0, y: 0, z: 0 });
+      assert.equal(layer._compiledFillCanvas, fill);
+      assert.deepEqual(fill.resizes.slice(2), [['width', 512], ['height', 512]], 'DPR change resizes the same bitmap exactly once');
+      layer.onRemove(map); assert.equal(layer._compiledFillCanvas, null);
+    } finally {
+      if (originalRatio === undefined) delete globalThis.devicePixelRatio;
+      else globalThis.devicePixelRatio = originalRatio;
+    }
+  });
+});
+
+test('zero selected fill opacity skips its composite while keeping interactive selected borders', async () => {
+  await withBrowserCanvas(async () => {
+    const selected = record('AA:1', 'P1');
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [record('world', null)] }, extent: 2 ** 24,
+      getCountries: () => [{ features: [selected] }], getVisited: () => [selected.id],
+      colorFor: () => '#123456', fillOpacity: 0,
+    });
+    const map = mapMock(); layer.onAdd(map);
+    const tile = layer.createTile({ x: 0, y: 0, z: 0 });
+    assert.deepEqual(tile.calls.filter(call => call[0] === 'drawImage').map(call => call[5]), [0.84]);
+    assert.equal(tile.pixels.some(pixel => pixel.kind === 'fill' && pixel.color === '#123456'), false);
+    assert.ok(tile.calls.some(call => call[0] === 'stroke' && call[1].d === selected.d));
+    assert.equal(layer._hitRecord({ latlng: {} }).id, selected.id, 'opacity does not remove the visit from hit testing');
+    layer.onRemove(map);
+  });
+});
+
+test('compiled layer keeps visits read-only and supports visited hover, refresh, and cleanup', async () => {
   await withBrowserCanvas(async canvases => {
     const L = makeLeaflet();
     const selected = record('AA:1', 'P1');
@@ -460,8 +657,8 @@ test('compiled layer uses one lazy path per record and supports click, visited h
     });
     const map = mapMock();
     layer.onAdd(map);
-    map.handlers.get('click').handler.call(layer, { latlng: {} });
-    assert.deepEqual(toggles, ['AA:1']);
+    assert.equal(map.handlers.has('click'), false);
+    assert.deepEqual(toggles, []);
     const tooltip = layer._compiledTooltip;
     map.handlers.get('mousemove').handler.call(layer, { latlng: {} });
     assert.equal(tooltip.content.textContent, 'Selected label');
@@ -477,7 +674,7 @@ test('compiled layer uses one lazy path per record and supports click, visited h
   });
 });
 
-test('interactive false avoids event hooks and toggles', async () => {
+test('legacy interactive false still allows name hover without click toggles', async () => {
   await withBrowserCanvas(async () => {
     const L = makeLeaflet();
     const map = mapMock();
@@ -492,6 +689,25 @@ test('interactive false avoids event hooks and toggles', async () => {
     layer.onRemove(map);
     assert.equal(map.handlers.size, 0);
     assert.equal(toggled, false);
+  });
+});
+
+test('name hit testing skips unvisited regions even when they overlap a visited place', async () => {
+  await withBrowserCanvas(async () => {
+    const selected = record('AA:1', 'P1');
+    const hidden = record('AA:2', 'P1');
+    let visited = [selected.id];
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [] }, extent: 2 ** 24,
+      getCountries: () => [{ features: [hidden, selected] }], getVisited: () => visited,
+    });
+    const map = mapMock();
+    layer.onAdd(map);
+    assert.equal(layer._hitRecord({ latlng: {} }), selected);
+    visited = [];
+    layer.refresh();
+    assert.equal(layer._hitRecord({ latlng: {} }), null);
+    layer.onRemove(map);
   });
 });
 
@@ -510,11 +726,11 @@ test('detail replaces world, selectable ADM0 and its parent together, including 
       getOutline: (_code, atZoom) => atZoom >= 6 ? outline : null, outlineRegionIds: [region.id],
     });
     layer.onAdd(map);
-    layer.createTile({ x: 0, y: 0, z: 0 });
-    assert.ok(canvases[0].calls.some(call => call[0] === 'fill' && call[1].d === region.d));
+    const coarseTile = layer.createTile({ x: 0, y: 0, z: 0 });
+    assert.ok(coarseTile.calls.some(call => call[0] === 'fill' && call[1].d === region.d));
     zoom = 8;
-    layer.createTile({ x: 0, y: 0, z: 0 });
-    const detailedPaths = canvases[1].calls.filter(call => ['fill', 'stroke'].includes(call[0])).map(call => call[1].d);
+    const detailedTile = layer.createTile({ x: 0, y: 0, z: 0 });
+    const detailedPaths = detailedTile.calls.filter(call => ['fill', 'stroke'].includes(call[0])).map(call => call[1].d);
     assert.ok(detailedPaths.length > 0);
     assert.ok(detailedPaths.every(d => d === outline.d), 'no obsolete triangle remains in world, selected, or parent paths');
     assert.deepEqual(layer._compiledScene.activeRecords.find(item => item.id === region.id).parts, outline.parts);
@@ -569,13 +785,12 @@ test('subpixel interior gaps keep their fill geometry and gain a stroke only whe
     const layer = createCompiledLayer(makeLeaflet(), {
       world: { features: [feature] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
     });
-    layer.createTile({ x: 0, y: 0, z: 9 });
-    layer.createTile({ x: 0, y: 0, z: 12 });
-    for (const canvas of canvases) {
+    const tiles = [layer.createTile({ x: 0, y: 0, z: 9 }), layer.createTile({ x: 0, y: 0, z: 12 })];
+    for (const canvas of tiles) {
       assert.equal(canvas.calls.find(call => call[0] === 'fill')[1].d, feature.d, 'holes remain in the exact fill at every zoom');
     }
-    assert.equal(canvases[0].calls.find(call => call[0] === 'stroke')[1].d.trim(), exterior);
-    assert.equal(canvases[1].calls.find(call => call[0] === 'stroke')[1].d.replace(/\s+/g, ' '), feature.d);
+    assert.equal(tiles[0].calls.find(call => call[0] === 'stroke')[1].d.trim(), exterior);
+    assert.equal(tiles[1].calls.find(call => call[0] === 'stroke')[1].d.replace(/\s+/g, ' '), feature.d);
     assert.equal(paths.length, 3, 'fill plus the two distinct stroke eligibility sets');
   });
 });
@@ -617,12 +832,12 @@ test('culls multipart records per box with stroke padding and world wrapping', a
     const layer = createCompiledLayer(makeLeaflet(), {
       world: { features: [feature] }, extent: 1024, getCountries: () => [], getVisited: () => [],
     });
-    layer.createTile({ x: 0, y: 0, z: 1 });
-    assert.ok(canvases[0].calls.some(call => call[0] === 'stroke'), 'edge part must retain its padded outline');
-    layer.createTile({ x: 1, y: 0, z: 1 });
-    assert.ok(canvases[1].calls.some(call => call[0] === 'stroke'), 'far part must render in its own tile');
-    layer.createTile({ x: -1, y: 0, z: 1 });
-    assert.ok(canvases[2].calls.some(call => call[0] === 'stroke'), 'dateline-adjacent part must render in the wrapped tile');
+    const first = layer.createTile({ x: 0, y: 0, z: 1 });
+    assert.ok(first.calls.some(call => call[0] === 'stroke'), 'edge part must retain its padded outline');
+    const second = layer.createTile({ x: 1, y: 0, z: 1 });
+    assert.ok(second.calls.some(call => call[0] === 'stroke'), 'far part must render in its own tile');
+    const wrapped = layer.createTile({ x: -1, y: 0, z: 1 });
+    assert.ok(wrapped.calls.some(call => call[0] === 'stroke'), 'dateline-adjacent part must render in the wrapped tile');
   });
 });
 

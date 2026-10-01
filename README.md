@@ -2,7 +2,7 @@
 
 JourneySphere 是一個可重用的 Leaflet 地圖元件，用來顯示使用者去過哪些國家與行政區。
 
-它會把已造訪的區域填色，點擊即可切換狀態；地圖形狀預先編譯，資料按國家延遲載入，適合旅行地圖、個人網站或小型旅遊工具。
+它會把已造訪的區域填色，電腦滑鼠停留或手機長按即可查看名稱；地圖形狀預先編譯，資料按國家延遲載入，適合旅行地圖、個人網站或小型旅遊工具。
 
 ![JourneySphere 40 個已造訪行政區示意圖](docs/journeysphere-demo.svg)
 
@@ -32,7 +32,7 @@ const journey = await createCompiledJourneySphere('#map', {
 
 推薦使用預先編譯版本。它會同時下載世界底圖與已造訪國家的形狀，直接在 Canvas 畫布套用 0／1 造訪狀態。座標投影、跨日期線處理和行政區索引都在建置時完成，瀏覽器不必重新計算，也不必先下載完整的區域目錄。沒去過的國家保持留白；已造訪區域上色，並保留原有的行政區邊界顯示規則。
 
-全圖使用相同的分級載入規則：先顯示較小的底圖；第 4 級起，在初次顯示後按目前視野補上精簡但較清楚的國家與海岸輪廓；第 6 級起載入完整輪廓。最多同時下載三份，快取最近使用的 32 份；若畫面包含更多國家，保留全部可見輪廓直到移出畫面，避免重複下載。以整個國家／地區為選取單位的輪廓會同步更新填色與點擊範圍；既有行政區 ID、造訪紀錄及配色保持一致。
+全圖使用相同的分級載入規則：先顯示較小的底圖；第 4 級起，在初次顯示後按目前視野補上精簡但較清楚的國家與海岸輪廓；第 6 級起載入完整輪廓。最多同時下載三份，快取最近使用的 32 份；若畫面包含更多國家，保留全部可見輪廓直到移出畫面，避免重複下載。以整個國家／地區為選取單位的輪廓會同步更新填色與名稱感應範圍；既有行政區 ID、造訪紀錄及配色保持一致。
 
 有行政區資料的國家，其放大輪廓由同一份行政區幾何合併而成，避免海岸線與造訪填色錯位。尚未涵蓋的離島保留背景輪廓；區域接合處的空隙保持原狀，不額外加上深色輪廓。原始資料中的內部水域等孔洞，則在目前縮放比例足以看清時描邊。這些處理適用於整份圖集。
 
@@ -51,7 +51,8 @@ const journey = await createCompiledJourneySphere('#map', {
 ## 主要功能
 
 - 已造訪區域以國家顏色填滿，未造訪區域保持簡潔。
-- 只顯示已造訪區域的名稱，點擊可開關造訪狀態。
+- 電腦滑鼠停留在已造訪區域時顯示名稱；手機長按約半秒顯示，放開即關閉。
+- 點擊或輕觸地圖不會更改造訪狀態；透過 `setVisited()` 或 `setCodeword()` 更新紀錄。
 - `getVisited()` / `setVisited()` 管理穩定的 region ID。
 - `getCodeword()` / `setCodeword()` 將選擇保存成與 atlas 版本綁定的短字串。
 - `reset()` 還原狀態，`destroy()` 清理地圖與監聽器。
@@ -90,11 +91,15 @@ promise can be retried after failure. `detailsReady` tracks automatic loading.
 The remote embed uses these options automatically. It keeps full-country shards
 out of first display and panning, while country outline refinement remains active.
 Live place updates retain the working map until new data has been validated;
-view-only updates preserve interactive edits. See [the embed guide](docs/embed.md)
+view-only updates preserve programmatic visit changes. See [the embed guide](docs/embed.md)
 for update, retry and reset behavior.
 Map repainting also preserves visible tiles, including during coastline updates,
-clicks, reset and instant view changes. [Frame-by-frame browser checks](outputs/map-flashing/report.md)
+visit updates, reset and instant view changes. [Frame-by-frame browser checks](outputs/map-flashing/report.md)
 compare the previous flashing release with the corrected renderer.
+Visited fills apply opacity once per tile, including where administrative
+boundaries from different sources overlap. Each region keeps its own holes;
+the later region in the existing drawing order owns the overlapping color.
+See the [Zhuhai and Macao regression checks](outputs/map-fills/report.md).
 
 Compiled maps also provide `journey.setView(center, zoom)` to update their view
 and reset target without changing visits. For preloaded partial geometry, call

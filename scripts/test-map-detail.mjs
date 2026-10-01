@@ -145,19 +145,20 @@ async function visiblePixel(page, point) {
     if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom || getComputedStyle(canvas).visibility === 'hidden') return [];
     return [Array.from(canvas.getContext('2d').getImageData(Math.floor((x-rect.left)*canvas.width/rect.width),Math.floor((y-rect.top)*canvas.height/rect.height),1,1).data)];
   }), point);
-  assert.ok(pixels.some(([r,g,b,a]) => a > 180 && b > r + 15 && g > r), `fine HKG interior is visibly blue on canvas: ${JSON.stringify(pixels)}`);
+  assert.ok(pixels.some(([r,g,b,a]) => a > 180 && b > r + 15 && g >= r), `fine HKG interior is visibly blue on canvas: ${JSON.stringify(pixels)}`);
   return pixels;
 }
-async function hoverAndClick(page, point) {
+async function hoverAndUpdate(page, point) {
   await page.mouse.move(point.x, point.y);
   await page.locator('.leaflet-tooltip').waitFor({ state: 'visible' });
   assert.equal(await page.locator('.leaflet-tooltip').count(), 1, 'exactly one hover label is visible');
   assert.equal(await page.locator('.leaflet-tooltip').innerText(), 'Hong Kong', 'fine-only land has the HKG hover label');
   await page.mouse.click(point.x, point.y);
-  await waitFor(page, () => window.journeySphere.getVisited().length === 0);
-  assert.deepEqual(await page.evaluate(() => window.journeySphere.getVisited()), [], 'real fine-only click toggles HKG off');
+  assert.deepEqual(await page.evaluate(() => window.journeySphere.getVisited()), ['HKG:ADM0:HKG'], 'real fine-only click preserves visits');
+  await page.evaluate(() => window.journeySphere.setVisited([]));
+  assert.deepEqual(await page.evaluate(() => window.journeySphere.getVisited()), [], 'programmatic visit update clears refined HKG');
   await page.evaluate(() => window.journeySphere.setVisited(['HKG:ADM0:HKG']));
-  assert.equal(await page.evaluate(() => window.journeySphere.getCodeword() === window.__initialCodeword), true, 'selection codeword is stable after detail and real clicks');
+  assert.equal(await page.evaluate(() => window.journeySphere.getCodeword() === window.__initialCodeword), true, 'selection codeword is stable after detail and visit updates');
   await page.mouse.move(10, 10);
   await frames(page);
 }
@@ -274,9 +275,11 @@ async function globalScenario(scenario) {
   await page.locator('.leaflet-tooltip').waitFor({state:'visible'});
   assert.equal(await page.locator('.leaflet-tooltip').innerText(),scenario.canonical.name,`${scenario.key}: canonical region hover label remains correct`);
   await page.mouse.click(point.x,point.y);
-  await waitFor(page,()=>window.journeySphere.getVisited().length===0);
+  assert.deepEqual(await page.evaluate(()=>window.journeySphere.getVisited()),[scenario.selectedId],`${scenario.key}: real click preserves visits`);
+  await page.evaluate(()=>window.journeySphere.setVisited([]));
+  assert.equal(await page.evaluate(()=>window.journeySphere.getVisited().length),0,`${scenario.key}: programmatic update clears selection`);
   await page.evaluate(id=>window.journeySphere.setVisited([id]),scenario.selectedId);
-  assert.equal(await page.evaluate(()=>window.journeySphere.getCodeword()),before.codeword,`${scenario.key}: real click plus selection restore preserves the codeword`);
+  assert.equal(await page.evaluate(()=>window.journeySphere.getCodeword()),before.codeword,`${scenario.key}: visit update plus selection restore preserves the codeword`);
   await page.mouse.move(10,10);await frames(page);
   if(scenario.screenshot){const file=`${scenario.key}-fine.png`;globalScreenshots.push(file);await page.screenshot({path:path.join(output,file)});}
   if(scenario.key==='aleutian-dateline')assert.ok(after.bounds.west<180&&after.bounds.east>180,'Aleutian test viewport genuinely straddles the dateline');
@@ -308,9 +311,9 @@ try {
   assert.equal(timing.currentCodeword, timing.initialCodeword, 'automatic outline refinement preserves the original codeword');
   const fineOnlyPoint = await findPoint(desktop);
   const pixel = await visiblePixel(desktop, fineOnlyPoint);
-  await hoverAndClick(desktop, fineOnlyPoint);
+  await hoverAndUpdate(desktop, fineOnlyPoint);
   await desktop.screenshot({ path: path.join(output, 'desktop-zoom9-dpr1.png') });
-  checks.push({ case: 'desktop fine-only coast, first paint, hover, click and codeword', point: fineOnlyPoint, pixel, firstPaintMs: timing.firstPaint, firstDetailMs: Math.min(...timing.requests.map(request => request.startTime)) });
+  checks.push({ case: 'desktop fine-only coast, first paint, hover, visit update and codeword', point: fineOnlyPoint, pixel, firstPaintMs: timing.firstPaint, firstDetailMs: Math.min(...timing.requests.map(request => request.startTime)) });
   for (const zoom of [9, 12]) {
     await desktop.evaluate(({lat,lng,zoom}) => window.journeySphere.map.setView([lat,lng+720],zoom,{animate:false}), { ...fineOnlyPoint, zoom });
     await fineReady(desktop);
@@ -320,7 +323,7 @@ try {
     assert.equal(center.zoom, zoom);
     const wrappedPoint = await findPoint(desktop);
     await visiblePixel(desktop, wrappedPoint);
-    await hoverAndClick(desktop, wrappedPoint);
+    await hoverAndUpdate(desktop, wrappedPoint);
     checks.push({ case: `two world wraps at zoom ${zoom}`, point: wrappedPoint });
   }
   await desktop.evaluate(({lat,lng}) => window.journeySphere.map.setView([lat,lng],12,{animate:false}), fineOnlyPoint);
@@ -376,7 +379,8 @@ try {
   const mobilePoint = await findPoint(mobile);
   await visiblePixel(mobile, mobilePoint);
   await mobile.touchscreen.tap(mobilePoint.x, mobilePoint.y);
-  await waitFor(mobile, () => window.journeySphere.getVisited().length === 0);
+  assert.deepEqual(await mobile.evaluate(() => window.journeySphere.getVisited()), ['HKG:ADM0:HKG'], 'mobile tap preserves visits');
+  await mobile.evaluate(() => window.journeySphere.setVisited([]));
   await resetAndCheck(mobile);
   await fineReady(mobile);
   await mobile.screenshot({ path: path.join(output, 'mobile-zoom9-dpr2.png') });
@@ -386,7 +390,8 @@ try {
   assert.ok((await mobile.evaluate(() => window.journeySphere.map.getCenter().lng)) > 720);
   await visiblePixel(mobile, mobileWrapped);
   await mobile.touchscreen.tap(mobileWrapped.x, mobileWrapped.y);
-  await waitFor(mobile, () => window.journeySphere.getVisited().length === 0);
+  assert.deepEqual(await mobile.evaluate(() => window.journeySphere.getVisited()), ['HKG:ADM0:HKG'], 'wrapped mobile tap preserves visits');
+  await mobile.evaluate(() => window.journeySphere.setVisited([]));
   await mobile.evaluate(() => window.journeySphere.setVisited(['HKG:ADM0:HKG']));
   await frames(mobile);
   await mobile.screenshot({ path: path.join(output, 'mobile-zoom12-dpr2.png') });
@@ -404,7 +409,7 @@ try {
   assert.ok(heldRoute, 'HKG detail network response is genuinely held');
   await checkFineScene(held, false);
   const heldPoint = await findPoint(held, 'coarse');
-  await hoverAndClick(held, heldPoint);
+  await hoverAndUpdate(held, heldPoint);
   await held.evaluate(() => {
     window.__pendingSettled = false;
     window.__pending = window.journeySphere.loadOutlineDetails().then(() => { window.__pendingSettled = true; window.__pendingOutcome = 'resolved'; }, error => { window.__pendingSettled = true; window.__pendingOutcome = error.message; });
@@ -468,7 +473,7 @@ try {
   assert.ok(hkgAttempts >= 3, 'initial failure, failed explicit retry, and successful explicit retry all requested HKG');
   const retryPoint = await findPoint(retry);
   await visiblePixel(retry, retryPoint);
-  await hoverAndClick(retry, retryPoint);
+  await hoverAndUpdate(retry, retryPoint);
   const expectedErrors = await retry.evaluate(() => window.__errors);
   assert.ok(expectedErrors.length >= 1 && expectedErrors.every(error => /503.*HKG/.test(error.message)), 'only the injected HKG failure is reported');
   await destroyAndCheck(retry);

@@ -1,4 +1,5 @@
 import { featuresNearLongitudeCopies } from './geometry.js';
+import { bindLongPress } from './place-interactions.js';
 import { encodeVisited, decodeVisited, validateVisited } from './state.js';
 export { encodeVisited, decodeVisited, validateVisited } from './state.js';
 
@@ -11,6 +12,21 @@ function exteriorGeometry(geometry) {
   if (geometry.type === 'Polygon') return { ...geometry, coordinates: geometry.coordinates.slice(0, 1) };
   if (geometry.type === 'MultiPolygon') return { ...geometry, coordinates: geometry.coordinates.map(polygon => polygon.slice(0, 1)) };
   return geometry;
+}
+
+function ringContains(ring, { lng, lat }) {
+  let inside = false;
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+    const [x, y] = ring[index];
+    const [previousX, previousY] = ring[previous];
+    if ((y > lat) !== (previousY > lat) && lng < (previousX - x) * (lat - y) / (previousY - y) + x) inside = !inside;
+  }
+  return inside;
+}
+
+function geometryContains(geometry, latlng) {
+  const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.type === 'MultiPolygon' ? geometry.coordinates : [];
+  return polygons.some(([outer, ...holes]) => ringContains(outer, latlng) && !holes.some(hole => ringContains(hole, latlng)));
 }
 
 async function readJSON(url, signal) {
@@ -122,10 +138,32 @@ export async function createJourneySphere(container, options = {}) {
   const loaded = new Map();
   const pending = new Map();
   const parentByRegion = new Map();
+  let visibleLabelLayer = null;
   let activeParents = new Set();
   const parentKey = (properties) => `${properties.countryCode}:${properties.parentId || properties.id}`;
   const activeCountries = () => new Set([...visited].map(id => id.split(':')[0]));
   let active = activeCountries();
+  const longPress = bindLongPress(map, {
+    resolve(latlng) {
+      for (const [code, country] of loaded) {
+        if (!active.has(code)) continue;
+        for (const target of country.labelTargets) {
+          if (!visited.has(target.feature.properties.id)) continue;
+          if (target.layer.getBounds && !target.layer.getBounds().contains(latlng)) continue;
+          if (geometryContains(target.feature.geometry, latlng)) return target.layer;
+        }
+      }
+      return null;
+    },
+    show(layer, latlng) {
+      visibleLabelLayer = layer;
+      layer.openTooltip(latlng);
+    },
+    hide() {
+      visibleLabelLayer?.closeTooltip();
+      visibleLabelLayer = null;
+    },
+  });
   const colorFor = (code) => options.colors?.[code] || palette[code]?.color || palette.countries?.[code]?.color || '#64748b';
   const countryStyle = (feature) => ({
     color: active.has(feature.properties.countryCode) ? '#8795a6' : '#c1cbd5',
@@ -161,11 +199,6 @@ export async function createJourneySphere(container, options = {}) {
   };
   status.addTo(map);
   const setStatus = (text) => { if (!destroyed) statusElement.textContent = text; };
-  const emitError = (error) => {
-    if (destroyed || error.name === 'AbortError') return;
-    setStatus(`Map data unavailable: ${error.message}`);
-    options.onError?.(error);
-  };
   async function countryLayer(code) {
     if (loaded.has(code)) return loaded.get(code);
     if (pending.has(code)) return pending.get(code);
@@ -180,6 +213,7 @@ export async function createJourneySphere(container, options = {}) {
         properties: { ...feature.properties, __journeysphereAdmin1: true },
       }));
       const tooltipSyncs = [];
+      const labelTargets = [];
       const layer = L.geoJSON(featuresNearLongitudeCopies([...outlines, ...data.features], 0), {
         renderer: detailRenderer, style: regionStyle,
         onEachFeature(feature, layer) {
@@ -189,6 +223,12 @@ export async function createJourneySphere(container, options = {}) {
           }
           let label;
           let tooltipBound = false;
+          labelTargets.push({ feature, layer });
+          const showHoverLabel = (event) => {
+            if (!tooltipBound || longPress.shouldIgnoreHover(event)) return;
+            visibleLabelLayer = layer;
+            layer.openTooltip(event.latlng);
+          };
           const syncTooltip = () => {
             const shouldShow = visited.has(feature.properties.id);
             if (shouldShow && !tooltipBound) {
@@ -197,23 +237,23 @@ export async function createJourneySphere(container, options = {}) {
                 label.textContent = options.labels?.[feature.properties.id] || feature.properties.name;
               }
               layer.bindTooltip(label, { sticky: true });
+              // Leaflet also opens tooltips on touch clicks. Labels on touch
+              // devices are opened only by the long-press gesture above.
+              layer.off('click mouseover mousemove');
+              layer.on('mouseover mousemove', showHoverLabel);
               tooltipBound = true;
             } else if (!shouldShow && tooltipBound) {
+              layer.off('mouseover mousemove', showHoverLabel);
               layer.unbindTooltip?.();
               tooltipBound = false;
             }
           };
           tooltipSyncs.push(syncTooltip);
           syncTooltip();
-          if (options.interactive !== false) layer.on('click', () => {
-            const next = new Set(visited);
-            if (next.has(feature.properties.id)) next.delete(feature.properties.id);
-            else next.add(feature.properties.id);
-            setVisited([...next]).catch(emitError);
-          });
         },
       });
       layer.syncTooltips = () => tooltipSyncs.forEach(syncTooltip => syncTooltip());
+      layer.labelTargets = labelTargets;
       loaded.set(code, layer);
       return layer;
     })();
@@ -234,7 +274,7 @@ export async function createJourneySphere(container, options = {}) {
       layer.syncTooltips?.();
       if (!map.hasLayer(layer)) layer.addTo(map);
     }
-    setStatus(options.interactive === false ? 'Move over a visited colored region to see its name.' : 'Move over a visited region to see its name. Click to toggle your visit.');
+    setStatus('Hover over a visited region or long press it to see its name.');
   }
   async function setVisited(ids) {
     if (destroyed) throw new Error('JourneySphere has been destroyed.');
@@ -244,6 +284,7 @@ export async function createJourneySphere(container, options = {}) {
     // Fetch prerequisites before committing so a failed fetch preserves the current state.
     await Promise.all([...new Set(next.map(id => id.split(':')[0]))].map(countryLayer));
     if (destroyed || request !== selectionRequest) return;
+    longPress.cancel();
     visited = new Set(next);
     active = activeCountries();
     await render();
@@ -271,6 +312,7 @@ export async function createJourneySphere(container, options = {}) {
     if (destroyed) return;
     destroyed = true; revision++;
     requests.abort();
+    longPress.destroy();
     resizeObserver?.disconnect();
     map.remove(); loaded.clear(); pending.clear(); parentByRegion.clear(); activeParents.clear();
     container.classList.remove('journeysphere');

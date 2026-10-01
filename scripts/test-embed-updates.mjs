@@ -206,7 +206,7 @@ try {
   await chunks.evaluate(() => { window.__element.places = ['香港']; }); await held(chunks, chunkGate);
   await preserves(chunks, initialIds, 'held geometry update', true);
   assert.deepEqual(await coloredPixel(chunks, originalPoint), beforePixel, 'held transaction keeps the displayed land palette');
-  await chunks.mouse.click(originalPoint.x, originalPoint.y); await waitFor(chunks, () => window.__element.journey.getVisited().length === 0);
+  await chunks.evaluate(() => window.__element.journey.setVisited([])); await waitFor(chunks, () => window.__element.journey.getVisited().length === 0);
   await chunks.evaluate(async ids => { await window.__element.journey.setVisited(ids); }, initialIds);
   await chunks.evaluate(() => { window.__element.setAttribute('center', '22.3,114.15'); window.__element.setAttribute('zoom', '9'); });
   assert.equal(chunkGate.requests.length, 1, 'view attributes do not restart a pending places geometry request');
