@@ -3,6 +3,7 @@ const WORLD = 256;
 const MAX_CACHE = 32;
 const MAX_CONCURRENT = 3;
 const MOVE_DEBOUNCE = 60;
+const FOCAL_EXCLUSIVE_MS = 2000;
 
 const inert = () => ({ get: () => null, load: () => Promise.resolve([]), ready: Promise.resolve([]), destroy() {} });
 function abortedHandle(reason) {
@@ -154,6 +155,10 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
   let latest = Promise.resolve([]);
   let viewCodes = [];
   let view = null;
+  let focalKey = null;
+  let focalRequest = null;
+  let focalBlocked = false;
+  let focalTimer;
   const listeners = [];
   const dataBase = new URL(String(dataUrl).replace(/\/?$/, '/'), globalThis.location?.href || import.meta.url);
   const base = new URL('compiled/', dataBase);
@@ -190,6 +195,10 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
   }
   function updateVisibility() {
     viewCodes = visible();
+    focalKey = viewCodes[0] || null;
+    focalRequest = focalKey ? pending.get(focalKey) || null : null;
+    focalBlocked = focalKey !== null && !cache.has(focalKey);
+    armFocalBudget();
     const wanted = new Set(viewCodes);
     for (const [code, task] of pending) if (!wanted.has(code)) {
       pending.delete(code);
@@ -204,7 +213,23 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
       item.reject(error);
     }
     trimCache();
+    pump();
     return viewCodes;
+  }
+  function armFocalBudget() {
+    clearTimeout(focalTimer); focalTimer = undefined;
+    if (!focalBlocked || !focalRequest) return;
+    const request = focalRequest;
+    const remaining = FOCAL_EXCLUSIVE_MS - (Date.now() - request.startedAt);
+    if (remaining <= 0) { focalBlocked = false; return; }
+    focalTimer = setTimeout(() => {
+      focalTimer = undefined;
+      if (destroyed || focalRequest !== request || !focalBlocked) return;
+      // A slow focal coast keeps downloading while other visible countries
+      // can refine. Repeated public loads retain this request's original budget.
+      focalBlocked = false;
+      pump();
+    }, remaining);
   }
   function trimCache() {
     const visibleCountries = new Set(viewCodes.map(codeFor));
@@ -232,7 +257,7 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
     const file = fileFor(key);
     if (!object(entry) || typeof file !== 'string' || file.length === 0) return Promise.reject(new Error(`Invalid outline manifest entry for ${code}.`));
     const controller = new AbortController();
-    const task = { controller, promise: null, done: null, resolve: null, reject: null, settled: false };
+    const task = { controller, promise: null, done: null, resolve: null, reject: null, settled: false, startedAt: Date.now() };
     task.promise = new Promise((resolve, reject) => { task.resolve = resolve; task.reject = reject; });
     task.done = fetch(new URL(file, base), { signal: controller.signal }).then(response => {
       if (!response.ok) throw new Error(`JourneySphere: ${response.status} loading outline ${code}`);
@@ -254,16 +279,39 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
     return task.promise;
   }
   function pump() {
-    while (!destroyed && active < MAX_CONCURRENT && queue.length) {
-      const item = queue.shift();
+    while (!destroyed && queue.length) {
+      if (focalBlocked && cache.has(focalKey)) {
+        focalBlocked = false; clearTimeout(focalTimer); focalTimer = undefined;
+      }
+      // Give the focal country the available download bandwidth, then fill the
+      // remaining viewport in parallel. A cached focal coast needs no gate.
+      if (active >= MAX_CONCURRENT) break;
+      const index = focalBlocked ? queue.findIndex(item => !item.obsolete && item.code === focalKey) : 0;
+      if (index < 0) break;
+      const [item] = queue.splice(index, 1);
       if (queued.get(item.code) === item) queued.delete(item.code);
       if (item.obsolete) continue;
       if (!viewCodes.includes(item.code) || cache.has(item.code)) { item.resolve(cache.get(item.code) || null); continue; }
       active += 1;
       const request = fetchCode(item.code);
       const task = pending.get(item.code);
+      if (item.code === focalKey) { focalRequest = task; armFocalBudget(); }
       request.then(item.resolve, item.reject);
-      (task?.done || request).then(() => { active -= 1; pump(); }, () => { active -= 1; pump(); });
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        active -= 1;
+        if (task === focalRequest) {
+          focalRequest = null; focalBlocked = false;
+          clearTimeout(focalTimer); focalTimer = undefined;
+        }
+        pump();
+      };
+      (task?.done || request).then(release, release);
+      // Cancellation settles promptly even when an underlying fetch ignores
+      // abort. Its late completion cannot hold the next viewport's focal slot.
+      request.catch(() => { if (task?.obsolete) release(); });
     }
   }
   function enqueue(code) {
@@ -301,7 +349,7 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
   signal?.addEventListener('abort', abort, { once: true });
   function destroy(reason = new Error('outline detail destroyed')) {
     if (destroyed) return;
-    destroyed = true; clearTimeout(timer);
+    destroyed = true; clearTimeout(timer); clearTimeout(focalTimer);
     listeners.forEach(([event, handler]) => map.off?.(event, handler));
     signal?.removeEventListener('abort', abort);
     queue.splice(0).forEach(item => item.reject(reason));

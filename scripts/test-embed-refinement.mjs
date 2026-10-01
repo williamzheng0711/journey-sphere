@@ -17,7 +17,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.resolve(root, process.env.OUTPUT_DIR || 'outputs/embed-refinement');
-const baselineRef = process.env.BASELINE_REF || 'd883c187beb35c871e7d53e7e000e2d10b01ec58';
+const baselineRef = process.env.BASELINE_REF || '222d04850aee4cd96f18328c23c5a8396ad50963';
 const samples = Math.max(1, Number(process.env.PERF_SAMPLES || 3));
 const consumerRoot = path.resolve(process.env.CONSUMER_ROOT || path.join(root, '../williamzheng0711.github.io'));
 const mime = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', json: 'application/json', css: 'text/css; charset=utf-8', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
@@ -55,12 +55,17 @@ for (const input of [...startupPlaces, ...scenarios.map(s => s.place), ...consum
 }
 
 const baselineRoot = await mkdtemp(path.join(os.tmpdir(), 'journey-sphere-embed-baseline-'));
-const archivePaths = ['src', 'embed.js', 'vendor', 'data/compiled/manifest.js', 'data/embed/aliases.js', 'data/embed/world.json',
+const baselineHasOutlineFiles = execFileSync('git', ['ls-tree', '--name-only', baselineRef, 'data/outlines'], { cwd: root, encoding: 'utf8' }).trim() === 'data/outlines';
+const archiveTrees = ['src', 'vendor', ...(baselineHasOutlineFiles ? ['data/outlines'] : [])];
+const archiveFiles = ['embed.js', 'data/compiled/manifest.js', 'data/embed/aliases.js', 'data/embed/world.json',
   ...[...buckets].map(bucket => `data/embed/names/${bucket}.json`), ...[...chunks].map(chunk => `data/embed/${chunk}`)];
-const archive = execFileSync('git', ['archive', baselineRef, ...archivePaths], { cwd: root, maxBuffer: 32 * 1024 * 1024 });
+const archive = execFileSync('git', ['archive', baselineRef, ...archiveTrees, ...archiveFiles], { cwd: root, maxBuffer: 128 * 1024 * 1024 });
 execFileSync('tar', ['-xf', '-', '-C', baselineRoot], { input: archive });
 const baselineWorld = JSON.parse(await readFile(path.join(baselineRoot, 'data/embed/world.json'), 'utf8'));
+const baselineManifestText = await readFile(path.join(baselineRoot, 'data/compiled/manifest.js'), 'utf8');
+const baselineOutlineConfig = JSON.parse(baselineManifestText.replace(/^export default\s*/, '').replace(/;\s*$/, '')).outlines;
 const outlineConfig = (await import('../data/compiled/manifest.js')).default.outlines;
+const outlineConfigs = { baseline: baselineOutlineConfig, current: outlineConfig };
 const assets = new Map();
 function cacheAsset(urlPath, body) {
   const buffer = Buffer.isBuffer(body) ? body : Buffer.from(body);
@@ -80,11 +85,11 @@ async function cacheFileTree(base, relative, prefix) {
 for (const [variant, base] of [['baseline', baselineRoot], ['current', root]]) {
   await cacheFileTree(base, 'src', `/${variant}`);
   await cacheFileTree(base, 'vendor', `/${variant}`);
-  for (const filename of archivePaths.filter(filename => !['src', 'vendor'].includes(filename))) {
+  if (variant === 'current' || baselineHasOutlineFiles) await cacheFileTree(base, 'data/outlines', `/${variant}`);
+  for (const filename of archiveFiles) {
     cacheAsset(`/${variant}/${filename}`, await readFile(path.join(base, filename)));
   }
 }
-await cacheFileTree(root, 'data/outlines', '/current');
 if (consumerHtml) {
   for (const [variant] of [['baseline'], ['current']]) {
     cacheAsset(`/consumer-${variant}/index.html`, consumerHtml.replace(/https:\/\/cdn\.jsdelivr\.net\/gh\/williamzheng0711\/journey-sphere@[^"']+\/embed\.js/g, `/${variant}/embed.js`));
@@ -138,7 +143,10 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
 const contexts = [];
 const report = {
-  baselineRef, baselineDescription: 'The immutable embed used by the sibling homepage before this change',
+  baselineRef, baselineDescription: baselineOutlineConfig
+    ? 'The selected Git baseline, including its deferred outline and overview assets'
+    : 'The immutable embed used by the sibling homepage before refinement',
+  baselineIncludesOutlineData: baselineHasOutlineFiles,
   network: { latencyMs: 150, downstreamBitsPerSecond: 1_600_000, cache: 'disabled', transport: 'preloaded gzip, HTTP/1.1 on localhost', cpuThrottle: 1 },
   measure: 'Navigation start to an attached, CSS-visible, non-empty land canvas after two animation frames; no preparation time included',
   performance: [], refinement: [], errors: [],
@@ -345,21 +353,22 @@ try {
       const requestOrder = await page.evaluate(() => window.__mapFetches.filter(request => /\/outlines\//.test(request.url)));
       assert.ok(requestOrder.every(request => request.firstMapVisibleAt !== null), 'outline requests wait until overview gets a visible paint');
       if (sample === 0) await screenshot(page, `${perfCase.key}-${variant}-overview.png`);
-      if (variant === 'current' && outlineConfig.detailZoom > outlineConfig.minZoom) {
+      const config = outlineConfigs[variant];
+      if (config?.detailZoom > config?.minZoom) {
         await page.waitForFunction(() => window.__centerCountryRefinedAt !== null, null, { timeout: 60000 });
         result.centerCountry = 'CHN';
         result.centerCountryRefinedAtMs = await page.evaluate(() => window.__centerCountryRefinedAt);
         result.centerCountryRefinementAfterFirstPaintMs = result.centerCountryRefinedAtMs - result.firstMapVisibleMs;
-        if (sample === 0) await screenshot(page, `${perfCase.key}-current-centered-refinement.png`);
+        if (sample === 0) await screenshot(page, `${perfCase.key}-${variant}-centered-refinement.png`);
       }
-      if (sample === 0 && variant === 'current' && outlineConfig.detailZoom > outlineConfig.minZoom) {
+      if (sample === 0 && config?.detailZoom > config?.minZoom) {
         await page.evaluate(() => document.querySelector('journey-sphere').journey.loadOutlineDetails());
         await frames(page);
         result.overviewRefinementReadyMs = await page.evaluate(() => performance.now());
         result.overviewRefinementAfterFirstPaintMs = result.overviewRefinementReadyMs - result.firstMapVisibleMs;
         result.overviewRefinementResourceBytes = await page.evaluate(() => performance.getEntriesByType('resource')
           .filter(entry => entry.name.includes('/outlines/')).reduce((sum, entry) => sum + entry.encodedBodySize, 0));
-        await screenshot(page, `${perfCase.key}-current-refined-overview.png`);
+        await screenshot(page, `${perfCase.key}-${variant}-refined-overview.png`);
       }
       runs[variant].push(result);
       console.log(`${perfCase.key} ${variant} ${sample + 1}/${samples}: ${Math.round(result.firstMapVisibleMs)} ms, ${Math.round(result.mapEncodedBytesBeforePaint / 1024)} KiB map body`);
@@ -379,6 +388,9 @@ try {
     if (runs.current[0].centerCountryRefinementAfterFirstPaintMs !== undefined) {
       record.medianCenterCountryRefinementAfterFirstPaintMs = median(runs.current.map(run => run.centerCountryRefinementAfterFirstPaintMs));
     }
+    if (runs.baseline[0].centerCountryRefinementAfterFirstPaintMs !== undefined) {
+      record.baselineMedianCenterCountryRefinementAfterFirstPaintMs = median(runs.baseline.map(run => run.centerCountryRefinementAfterFirstPaintMs));
+    }
     record.initialStateAcrossVersionsVerified = true;
     report.performance.push(record);
     assert.ok(record.differenceMs <= allowedRegressionMs,
@@ -388,8 +400,13 @@ try {
   for (const scenario of scenarios) {
     const baseline = await open(`/baseline/${scenario.key}.html`);
     const baselineInitial = await scene(baseline.page, scenario.code, scenario.id, true);
+    if (baselineOutlineConfig) {
+      await baseline.page.evaluate(() => document.querySelector('journey-sphere').journey.loadOutlineDetails());
+      await frames(baseline.page);
+    }
     await screenshot(baseline.page, `${scenario.key}-baseline-overview.png`);
-    await baseline.page.evaluate(({ center, zoom }) => document.querySelector('journey-sphere').journey.map.setView(center, zoom, { animate: false }), scenario);
+    if (baselineOutlineConfig) await refine(baseline.page, scenario);
+    else await baseline.page.evaluate(({ center, zoom }) => document.querySelector('journey-sphere').journey.map.setView(center, zoom, { animate: false }), scenario);
     await screenshot(baseline.page, `${scenario.key}-baseline.png`);
     const baselineZoom = await scene(baseline.page, scenario.code, scenario.id);
     const current = await open(`/current/${scenario.key}.html`);
@@ -407,7 +424,8 @@ try {
     }
     const refinementTiming = await refine(current.page, scenario);
     const fine = await scene(current.page, scenario.code, scenario.id);
-    assert.notEqual(fine.world, baselineZoom.world, `${scenario.key}: detailed land replaces simplified embed world`);
+    if (baselineOutlineConfig) assert.ok(fine.world === baselineZoom.world, `${scenario.key}: exact detailed land matches the settled baseline`);
+    else assert.notEqual(fine.world, baselineZoom.world, `${scenario.key}: detailed land replaces simplified embed world`);
     assert.deepEqual(fine.visited, coarse.visited, `${scenario.key}: refinement preserves visited IDs`);
     assert.equal(fine.codeword, coarse.codeword, `${scenario.key}: refinement preserves visit codeword`);
     if (scenario.code === 'HKG') {
@@ -443,6 +461,7 @@ try {
     assert.ok(outlineRequests.every(request => request.firstMapVisibleAt !== null), `${scenario.key}: details never block first map paint`);
     report.refinement.push({ key: scenario.key, selectedId: scenario.id, coarseWorldCharacters: coarse.world.length,
       mediumWorldCharacters: medium?.world.length, fineWorldCharacters: fine.world.length, selectedPathChanged: fine.selected !== coarse.selected,
+      baselineFineWorldCharacters: baselineZoom.world.length, exactBaselineDetailPreserved: Boolean(baselineOutlineConfig),
       timingUnthrottled: refinementTiming,
       outlineRequests: outlineRequests.map(request => ({ path: new URL(request.url).pathname, startMs: request.startTime })),
       visitedPreserved: true, codewordPreserved: true, fullCountryDownloads: 0 });
@@ -520,16 +539,17 @@ try {
     '| --- | ---: | ---: | ---: | ---: |',
     ...report.performance.map(item => `| ${item.key} | ${Math.round(item.baselineMedianMs)} ms | ${Math.round(item.currentMedianMs)} ms | ${Math.round(item.differenceMs)} ms (${item.differencePercent.toFixed(1)}%) | ${Math.round(item.baselineMedianMapBytes / 1024)} → ${Math.round(item.currentMedianMapBytes / 1024)} KiB |`), '',
     'The map focuses on Shanghai at [31.5, 121.8]. China is the country under that view center; these medians measure its actual detailed land paint after the first map:', '',
-    '| Page | Centered country refinement after first map |',
-    '| --- | ---: |',
-    ...report.performance.filter(item => item.medianCenterCountryRefinementAfterFirstPaintMs !== undefined)
-      .map(item => `| ${item.key} | ${(item.medianCenterCountryRefinementAfterFirstPaintMs / 1000).toFixed(2)} s |`), '',
-    'Visible countries refine progressively after the first map. The following values measure completion of every visible country at normal zoom on the first current cold sample:', '',
-    '| Page | All visible outlines after first map | Compressed refinement body |',
+    '| Page | Baseline centered refinement after first map | Current centered refinement after first map |',
     '| --- | ---: | ---: |',
+    ...report.performance.filter(item => item.medianCenterCountryRefinementAfterFirstPaintMs !== undefined)
+      .map(item => `| ${item.key} | ${item.baselineMedianCenterCountryRefinementAfterFirstPaintMs === undefined ? 'Unavailable' : `${(item.baselineMedianCenterCountryRefinementAfterFirstPaintMs / 1000).toFixed(2)} s`} | ${(item.medianCenterCountryRefinementAfterFirstPaintMs / 1000).toFixed(2)} s |`), '',
+    'Visible countries refine progressively after the first map. The following values measure completion of every visible country at normal zoom on the first cold sample:', '',
+    '| Page | Baseline all outlines after first map | Current all outlines after first map | Baseline refinement body | Current refinement body |',
+    '| --- | ---: | ---: | ---: | ---: |',
     ...report.performance.filter(item => item.runs.current[0].overviewRefinementReadyMs).map(item => {
       const run = item.runs.current[0];
-      return `| ${item.key} | ${(run.overviewRefinementAfterFirstPaintMs / 1000).toFixed(1)} s | ${(run.overviewRefinementResourceBytes / 1_000_000).toFixed(2)} MB |`;
+      const previous = item.runs.baseline[0];
+      return `| ${item.key} | ${previous.overviewRefinementReadyMs ? `${(previous.overviewRefinementAfterFirstPaintMs / 1000).toFixed(1)} s` : 'Unavailable'} | ${(run.overviewRefinementAfterFirstPaintMs / 1000).toFixed(1)} s | ${previous.overviewRefinementResourceBytes === undefined ? 'Unavailable' : `${(previous.overviewRefinementResourceBytes / 1_000_000).toFixed(2)} MB`} | ${(run.overviewRefinementResourceBytes / 1_000_000).toFixed(2)} MB |`;
     }), '',
     ...report.refinement.map(item => `- ${item.key}: detailed world ${item.coarseWorldCharacters.toLocaleString()} → ${item.fineWorldCharacters.toLocaleString()} path characters; visit IDs and codeword preserved; no full country downloads.`), '',
     ...(report.failureRetry ? ['Optional outline failure keeps the initial map usable. Explicit retry succeeds and preserves selected visits.', 'Mobile detailed land remains aligned and destroy removes all tiles.', ''] : []),

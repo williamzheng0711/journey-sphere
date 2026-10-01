@@ -224,16 +224,234 @@ test('caps fetch concurrency and deduplicates queued codes', async () => {
   const countries = Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`C${i}`, { file: `C${i}.json`, bounds: [13_500_000, 5_500_000, 14_000_000, 6_500_000] }]));
   const localManifest = { ...manifest, outlines: { ...manifest.outlines, countries } };
   const pending = []; let active = 0; let maximum = 0; const old = globalThis.fetch;
-  globalThis.fetch = async () => { active += 1; maximum = Math.max(maximum, active); return new Promise(resolve => pending.push(() => { active -= 1; resolve(new Response(JSON.stringify(payload('C0')))); })); };
+  globalThis.fetch = async url => {
+    const code = String(url).split('/').pop().slice(0, -5);
+    active += 1; maximum = Math.max(maximum, active);
+    return new Promise(resolve => pending.push(() => { active -= 1; resolve(new Response(JSON.stringify(payload(code)))); }));
+  };
   try {
     const controller = createOutlineDetail({ map: map(), manifest: localManifest, dataUrl: '/fixture/' });
     const first = controller.load(); const second = controller.load();
     await new Promise(resolve => setTimeout(resolve, 5));
-    assert.equal(pending.length, 3); assert.equal(maximum, 3);
-    while (pending.length) pending.shift()();
-    await Promise.allSettled([first, second]);
+    assert.equal(pending.length, 1, 'only the uncached focal country starts first');
+    assert.equal(maximum, 1);
+    pending.shift()();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(pending.length, 3, 'the rest of the viewport uses three downloads after focal refinement');
+    while (pending.length) {
+      for (const resolve of pending.splice(0)) resolve();
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    const records = await Promise.all([first, second]);
+    assert.ok(records.every(items => items.length === 6), 'both waits receive all countries without duplicate downloads');
     assert.equal(maximum, 3); controller.destroy();
   } finally { globalThis.fetch = old; }
+});
+
+test('a cached focal country immediately opens parallel downloads for newly visible neighbors', async () => {
+  const countries = {
+    C0: { file: 'C0.json', bounds: [13_600_000, 5_500_000, 13_700_000, 6_500_000] },
+    ...Object.fromEntries([1, 2, 3].map(index => [`C${index}`, {
+      file: `C${index}.json`, bounds: [14_000_000, 5_500_000, 14_100_000, 6_500_000],
+    }])),
+  };
+  const oldFetch = globalThis.fetch; const pending = []; const calls = [];
+  globalThis.fetch = async url => {
+    const code = String(url).split('/').pop().slice(0, -5); calls.push(code);
+    if (code === 'C0') return new Response(JSON.stringify(payload(code)));
+    return new Promise(resolve => pending.push(() => resolve(new Response(JSON.stringify(payload(code))))));
+  };
+  const m = map();
+  const controller = createOutlineDetail({ map: m, manifest: { ...manifest, outlines: { minZoom: 6, countries } }, dataUrl: '/fixture/' });
+  try {
+    assert.deepEqual((await controller.load()).map(record => record.countryCode), ['C0']);
+    m.getBounds = () => ({ getSouthWest: () => ({ lat: 10, lng: 96 }), getNorthEast: () => ({ lat: 30, lng: 130 }) });
+    const wider = controller.load();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(pending.length, 3, 'a cached focal coastline does not serialize new neighbors');
+    assert.deepEqual(calls, ['C0', 'C1', 'C2', 'C3']);
+    for (const resolve of pending) resolve();
+    assert.equal((await wider).length, 4);
+  } finally { controller.destroy(); globalThis.fetch = oldFetch; }
+});
+
+test('a failed focal request releases distant downloads and allows an explicit retry', async () => {
+  const countries = Object.fromEntries([0, 1, 2, 3, 4].map(index => [`C${index}`, {
+    file: `C${index}.json`, bounds: [13_500_000, 5_500_000, 14_000_000, 6_500_000],
+  }]));
+  const oldFetch = globalThis.fetch; const calls = []; const pending = [];
+  let rejectFocal; let focalAttempts = 0;
+  globalThis.fetch = async url => {
+    const code = String(url).split('/').pop().slice(0, -5); calls.push(code);
+    if (code === 'C0' && focalAttempts++ === 0) return new Promise((_resolve, reject) => { rejectFocal = reject; });
+    if (code === 'C0') return new Response(JSON.stringify(payload(code)));
+    return new Promise(resolve => pending.push(() => resolve(new Response(JSON.stringify(payload(code))))));
+  };
+  const controller = createOutlineDetail({ map: map(), manifest: { ...manifest, outlines: { minZoom: 6, countries } }, dataUrl: '/fixture/' });
+  try {
+    const initial = controller.load();
+    const repeated = controller.load();
+    const failures = Promise.all([assert.rejects(initial, /focal unavailable/), assert.rejects(repeated, /focal unavailable/)]);
+    assert.deepEqual(calls, ['C0']);
+    rejectFocal(new Error('focal unavailable'));
+    await failures;
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(pending.length, 3, 'focal failure unblocks distant refinement');
+    while (pending.length) {
+      for (const resolve of pending.splice(0)) resolve();
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    assert.ok([1, 2, 3, 4].every(index => controller.get(`C${index}`, 8)));
+    assert.equal((await controller.load()).length, 5);
+    assert.equal(focalAttempts, 2, 'the failed focal country can retry while neighbors remain cached');
+  } finally { controller.destroy(); globalThis.fetch = oldFetch; }
+});
+
+test('an immediate retry from a focal rejection starts fresh work after pending cleanup', async () => {
+  const oldFetch = globalThis.fetch; const calls = [];
+  let failed = false;
+  globalThis.fetch = async url => {
+    const code = String(url).split('/').pop().slice(0, -5); calls.push(code);
+    if (code === 'CHN' && !failed) { failed = true; throw new Error('focal unavailable'); }
+    return new Response(JSON.stringify(payload(code)));
+  };
+  const controller = createOutlineDetail({ map: map(), manifest, dataUrl: '/fixture/' });
+  try {
+    const initial = controller.load();
+    const retry = initial.catch(() => controller.load());
+    await assert.rejects(initial, /focal unavailable/);
+    assert.deepEqual((await retry).map(record => record.countryCode), ['CHN', 'HKG']);
+    assert.equal(calls.filter(code => code === 'CHN').length, 2, 'immediate retry does not reuse the rejected focal task');
+    assert.equal(calls.filter(code => code === 'HKG').length, 1, 'the retry shares pending or cached neighbors');
+  } finally { controller.destroy(); globalThis.fetch = oldFetch; }
+});
+
+test('a focal retry takes the first available slot while older neighbors are still downloading', async () => {
+  const countries = Object.fromEntries([0, 1, 2, 3, 4].map(index => [`C${index}`, {
+    file: `C${index}.json`, bounds: [13_500_000, 5_500_000, 14_000_000, 6_500_000],
+  }]));
+  const oldFetch = globalThis.fetch; const calls = []; const pending = new Map();
+  globalThis.fetch = async url => {
+    const code = String(url).split('/').pop().slice(0, -5); calls.push(code);
+    return new Promise((resolve, reject) => pending.set(code, {
+      resolve: () => { pending.delete(code); resolve(new Response(JSON.stringify(payload(code)))); },
+      reject: () => { pending.delete(code); reject(new Error('focal unavailable')); },
+    }));
+  };
+  const controller = createOutlineDetail({ map: map(), manifest: { ...manifest, outlines: { minZoom: 6, countries } }, dataUrl: '/fixture/' });
+  try {
+    const initial = controller.load();
+    const failure = assert.rejects(initial, /focal unavailable/);
+    pending.get('C0').reject();
+    await failure;
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepEqual(calls, ['C0', 'C1', 'C2', 'C3']);
+    const retry = controller.load();
+    assert.equal(calls.filter(code => code === 'C0').length, 1, 'three older downloads still occupy all slots');
+    pending.get('C1').resolve();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(calls.filter(code => code === 'C0').length, 2, 'the focal retry uses the first freed slot');
+    assert.ok(pending.has('C2') && pending.has('C3'), 'two older neighbors are genuinely still held');
+    assert.equal(calls.includes('C4'), false, 'new background work waits for focal retry completion');
+    pending.get('C0').resolve();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(calls.includes('C4'), true);
+    for (const task of [...pending.values()]) task.resolve();
+    assert.equal((await retry).length, 5);
+  } finally { controller.destroy(); globalThis.fetch = oldFetch; }
+});
+
+test('a held focal download opens other slots after two seconds without extending its deadline on repeated loads', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1000 });
+  const countries = Object.fromEntries([0, 1, 2, 3, 4].map(index => [`C${index}`, {
+    file: `C${index}.json`, bounds: [13_500_000, 5_500_000, 14_000_000, 6_500_000],
+  }]));
+  const oldFetch = globalThis.fetch; const calls = []; const pending = new Map();
+  globalThis.fetch = async url => {
+    const code = String(url).split('/').pop().slice(0, -5); calls.push(code);
+    return new Promise(resolve => pending.set(code, () => {
+      pending.delete(code); resolve(new Response(JSON.stringify(payload(code))));
+    }));
+  };
+  const controller = createOutlineDetail({ map: map(), manifest: { ...manifest, outlines: { minZoom: 6, countries } }, dataUrl: '/fixture/' });
+  try {
+    const initial = controller.load();
+    assert.deepEqual(calls, ['C0']);
+    t.mock.timers.tick(1500);
+    const repeated = controller.load();
+    t.mock.timers.tick(499);
+    assert.deepEqual(calls, ['C0'], 'focal bandwidth stays exclusive before its original deadline');
+    t.mock.timers.tick(1);
+    assert.deepEqual(calls, ['C0', 'C1', 'C2'], 'the held focal leaves two slots available at its original two-second deadline');
+    assert.ok(pending.has('C0'), 'the focal request continues rather than timing out');
+    pending.get('C1')();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.ok(controller.get('C1', 8), 'a neighbor can refine while focal geometry remains held');
+    assert.equal(controller.get('C0', 8), null);
+    assert.equal(calls.includes('C3'), true, 'the queue continues using available slots');
+    // Another load after the deadline must not make background work exclusive again.
+    const afterDeadline = controller.load();
+    pending.get('C2')();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls.includes('C4'), true);
+    for (const resolve of [...pending.values()]) resolve();
+    assert.ok((await Promise.all([initial, repeated, afterDeadline])).every(records => records.length === 5));
+  } finally {
+    controller.destroy(); globalThis.fetch = oldFetch; t.mock.timers.reset();
+  }
+});
+
+test('destroy during focal exclusivity cancels the wait and cannot launch queued neighbors later', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1000 });
+  const oldFetch = globalThis.fetch; const calls = [];
+  let resolveFocal;
+  globalThis.fetch = async url => {
+    calls.push(String(url));
+    return new Promise(resolve => { resolveFocal = resolve; });
+  };
+  const controller = createOutlineDetail({ map: map(), manifest, dataUrl: '/fixture/' });
+  try {
+    const initial = controller.load();
+    controller.destroy();
+    await assert.rejects(initial, /destroyed|aborted/i);
+    t.mock.timers.tick(5000);
+    assert.equal(calls.length, 1, 'destroyed maps cannot start queued work when the old deadline passes');
+    resolveFocal(new Response(JSON.stringify(payload('CHN'))));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(controller.get('CHN', 8), null);
+  } finally {
+    controller.destroy(); globalThis.fetch = oldFetch; t.mock.timers.reset();
+  }
+});
+
+test('pan prioritizes the new focal country even if the obsolete fetch ignores abort', async () => {
+  const countries = {
+    C0: { file: 'C0.json', bounds: [13_500_000, 5_500_000, 14_000_000, 6_500_000] },
+    C1: { file: 'C1.json', bounds: [7_300_000, 8_500_000, 8_000_000, 9_500_000] },
+  };
+  const oldFetch = globalThis.fetch; const calls = []; const pending = new Map();
+  globalThis.fetch = async url => {
+    const code = String(url).split('/').pop().slice(0, -5); calls.push(code);
+    return new Promise(resolve => pending.set(code, () => resolve(new Response(JSON.stringify(payload(code))))));
+  };
+  const m = map();
+  const controller = createOutlineDetail({ map: m, manifest: { ...manifest, outlines: { minZoom: 6, countries } }, dataUrl: '/fixture/' });
+  try {
+    const first = controller.load();
+    const obsolete = assert.rejects(first, /no longer visible/);
+    assert.deepEqual(calls, ['C0']);
+    m.getBounds = () => ({ getSouthWest: () => ({ lat: -10, lng: -20 }), getNorthEast: () => ({ lat: -5, lng: -10 }) });
+    const next = controller.load();
+    await obsolete;
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepEqual(calls, ['C0', 'C1'], 'a canceled download cannot block the new focal request');
+    pending.get('C1')();
+    assert.deepEqual((await next).map(record => record.countryCode), ['C1']);
+    pending.get('C0')();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(controller.get('C0', 8), null, 'obsolete completion cannot insert stale geometry');
+    assert.ok(controller.get('C1', 8));
+  } finally { controller.destroy(); globalThis.fetch = oldFetch; }
 });
 
 test('honors already-aborted signals and accepts outlines beyond one wrapped world', async () => {

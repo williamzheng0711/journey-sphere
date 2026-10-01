@@ -119,6 +119,31 @@ test('every shipped regional ring has independently bounded subpixel displacemen
   assert.ok(hkg.paths.reduce((total, ring) => total + ring.length / 2, 0) > 50, 'regional Hong Kong retains coastline detail beyond the old 25-point outline');
 });
 
+test('smaller tolerance retries recover valid complex coasts without changing the error cap or repairing invalid sources', async () => {
+  const provenance = await read('data/outlines/overview/provenance.json');
+  assert.deepEqual(provenance.retryToleranceFactors, [1, 0.5, 0.25, 0.125]);
+  for (const code of ['NOR', 'PHL', 'RUS']) {
+    const audit = provenance.countries[code];
+    assert.equal(audit.mode, 'topology-preserving', `${code} no longer retains the whole country after a ring conflict`);
+    assert.equal(audit.attemptCount, 2);
+    assert.equal(audit.simplificationTolerance, 350);
+    assert.deepEqual(audit.attempts.map(attempt => attempt.tolerance), [700, 350]);
+    assert.equal(audit.attempts[0].mode, 'exact-topology-fallback');
+    assert.equal(audit.attempts[1].mode, 'topology-preserving');
+    assert.ok(audit.maxError <= provenance.tolerance);
+    const [source, regional] = await Promise.all([
+      readFile(path.join(root, `data/outlines/${code}.json`)), readFile(path.join(root, `data/outlines/overview/${code}.json`)),
+    ]);
+    assert.ok(gzipSync(regional).length < gzipSync(source).length * 0.7, `${code} retry materially reduces detail bytes`);
+  }
+  for (const code of ['CHN', 'JPN', 'USA']) {
+    const audit = provenance.countries[code];
+    assert.equal(audit.mode, 'exact-invalid-source');
+    assert.equal(audit.attemptCount, 1, `${code} authoritative invalid geometry is never repaired or retried`);
+    assert.equal(audit.sha256, audit.outputSha256);
+  }
+});
+
 const topologyAudit = String.raw`
 import json, pathlib, sys
 from shapely.geometry import Polygon, MultiPolygon

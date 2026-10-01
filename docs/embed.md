@@ -48,6 +48,8 @@ engine and overview start loading before a separately fetched place list is
 assigned. Refinement starts only after two frame opportunities: compact visible
 country outlines at zoom 4–5.5, and full outlines at zoom 6 and above. Moving away
 cancels obsolete requests. Cached detail stays visible during a further upgrade.
+The nearest country outline gets a head start; once it finishes, or after two
+seconds, other visible countries load with up to three requests at a time.
 No full administrative country shard is required for first display, panning,
 zooming or selected-region clicks. Call `journey.loadDetails()` when complete
 editable administrative context is needed.
@@ -65,3 +67,6 @@ npm run check
 PLAYWRIGHT_MODULE=/path/to/playwright npm run test:embed
 PLAYWRIGHT_MODULE=/path/to/playwright node scripts/test-embed-refinement.mjs
 ```
+
+The refinement benchmark compares the previous main-branch release by default.
+Set `BASELINE_REF` to another Git revision to compare a different release.

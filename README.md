@@ -97,6 +97,9 @@ immediately, including a retry after failure. Failed detail requests leave the
 overview usable and are reported through `onError`. Moving away or zooming out
 cancels obsolete requests without reporting an error. Call `loadOutlineDetails()`
 after changing the map view when you need to wait for that exact view.
+The country closest to the view center loads first. Once it finishes, or after a
+two-second head start, the remaining visible outlines load with up to three
+concurrent requests. Cached focal detail lets them start immediately.
 
 Build a consumer deployment from this project:
 

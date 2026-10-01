@@ -119,7 +119,7 @@ def displacement(original, candidate):
     ring = [points[index] for index in kept]
     return ring + [ring[0]], maximum
 
-def simplify(feature, rings):
+def simplify_at_tolerance(feature, rings, simplification_tolerance):
     widths = feature.get('strokeWidths')
     groups = []
     for index, ring in enumerate(rings):
@@ -150,7 +150,7 @@ def simplify(feature, rings):
         return rings, {'mode': 'exact-invalid-source', 'degenerateRingsRetained': degenerate, 'maxError': 0}
     if not polygons:
         return rings, {'mode': 'exact-degenerate-source', 'degenerateRingsRetained': degenerate, 'maxError': 0}
-    candidate = source.simplify(tolerance, preserve_topology=True)
+    candidate = source.simplify(simplification_tolerance, preserve_topology=True)
     if candidate.geom_type == 'Polygon' and len(polygons) == 1:
         candidate = MultiPolygon([candidate])
     if candidate.geom_type != 'MultiPolygon' or not candidate.is_valid or len(candidate.geoms) != len(polygons):
@@ -181,6 +181,21 @@ def simplify(feature, rings):
         return rings, {'mode': 'exact-topology-fallback', 'degenerateRingsRetained': degenerate, 'maxError': 0}
     return result, {'mode': 'topology-preserving', 'degenerateRingsRetained': degenerate,
                     'errorFallbackRingsRetained': fallback_rings, 'maxError': round(maximum, 6)}
+
+def simplify(feature, rings):
+    attempts = []
+    for factor in [1, 0.5, 0.25, 0.125]:
+        simplification_tolerance = tolerance * factor
+        result, audit = simplify_at_tolerance(feature, rings, simplification_tolerance)
+        attempts.append({'tolerance': simplification_tolerance, 'mode': audit['mode']})
+        # A smaller simplification tolerance can avoid a conflict caused by
+        # reinstating an error-sensitive original ring. Every retry still checks
+        # the complete country's topology and the same independent error cap.
+        # Invalid authoritative geometry is never repaired or retried.
+        if audit['mode'] not in ['exact-topology-fallback', 'exact-error-fallback']:
+            break
+    audit.update(simplificationTolerance=simplification_tolerance, attemptCount=len(attempts), attempts=attempts)
+    return result, audit
 
 def json_bytes(value):
     return (json.dumps(value, ensure_ascii=False, separators=(',', ':')) + '\n').encode()
@@ -215,10 +230,11 @@ tier_manifest = {key: manifest[key] for key in ['format', 'version', 'extent', '
 tier_manifest.update(minZoom=4, detailZoom=6, tolerance=tolerance, countries=countries)
 (output_dir / 'manifest.json').write_bytes(json_bytes(tier_manifest))
 provenance = {'format': 1, 'sourceAttribution': '../sources.json', 'sourceManifestSha256': hashlib.sha256(manifest_text).hexdigest(),
-              'algorithm': 'Shapely simplify(preserve_topology=True), with independent integer-ring displacement and validity checks',
+              'algorithm': 'Shapely simplify(preserve_topology=True), with independent integer-ring displacement and whole-country validity checks; retry smaller tolerances after a validation conflict',
               'shapelyVersion': shapely.__version__, 'tolerance': tolerance, 'minZoom': 4, 'detailZoom': 6,
               'degenerateRingPolicy': 'Rings with fewer than three distinct vertices are retained exactly; excluded only from temporary geometry validation.',
               'invalidSourcePolicy': 'Retain the complete exact country geometry; never repair source topology.',
+              'retryToleranceFactors': [1, 0.5, 0.25, 0.125],
               'countries': sources}
 (output_dir / 'provenance.json').write_bytes(json_bytes(provenance))
 print(json.dumps({'countries': len(countries), 'tolerance': tolerance, 'exactGzipBytes': exact_bytes,
