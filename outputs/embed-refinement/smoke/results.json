@@ -1,0 +1,875 @@
+{
+  "baselineRef": "d883c187beb35c871e7d53e7e000e2d10b01ec58",
+  "baselineDescription": "The immutable embed used by the sibling homepage before this change",
+  "network": {
+    "latencyMs": 150,
+    "downstreamBitsPerSecond": 1600000,
+    "cache": "disabled",
+    "transport": "preloaded gzip, HTTP/1.1 on localhost",
+    "cpuThrottle": 1
+  },
+  "measure": "Navigation start to an attached, CSS-visible, non-empty land canvas after two animation frames; no preparation time included",
+  "performance": [],
+  "refinement": [
+    {
+      "key": "hong-kong",
+      "selectedId": "HKG:ADM0:HKG",
+      "coarseWorldCharacters": 75,
+      "mediumWorldCharacters": 892,
+      "fineWorldCharacters": 3437,
+      "selectedPathChanged": true,
+      "timingUnthrottled": {
+        "zoomStartedMs": 498.79999999981374,
+        "detailedCanvasReadyMs": 643,
+        "refinementDurationMs": 144.20000000018626
+      },
+      "outlineRequests": [
+        {
+          "path": "/current/data/outlines/overview/SCR.json",
+          "startMs": 45.5
+        },
+        {
+          "path": "/current/data/outlines/overview/NRU.json",
+          "startMs": 45.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/MAC.json",
+          "startMs": 45.700000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/SGP.json",
+          "startMs": 46.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/GUM.json",
+          "startMs": 46.700000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/HKG.json",
+          "startMs": 46.799999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/KAS.json",
+          "startMs": 47.200000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/MNP.json",
+          "startMs": 47.799999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/BRN.json",
+          "startMs": 47.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/PGA.json",
+          "startMs": 48
+        },
+        {
+          "path": "/current/data/outlines/overview/IOT.json",
+          "startMs": 48.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/TLS.json",
+          "startMs": 49
+        },
+        {
+          "path": "/current/data/outlines/overview/BTN.json",
+          "startMs": 49.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/MDV.json",
+          "startMs": 49.299999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/LKA.json",
+          "startMs": 49.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/PLW.json",
+          "startMs": 50.299999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/TWN.json",
+          "startMs": 50.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/KHM.json",
+          "startMs": 50.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/VUT.json",
+          "startMs": 51
+        },
+        {
+          "path": "/current/data/outlines/overview/BGD.json",
+          "startMs": 51.700000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/NPL.json",
+          "startMs": 51.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/TJK.json",
+          "startMs": 52.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/PRK.json",
+          "startMs": 52.700000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/KOR.json",
+          "startMs": 52.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/KGZ.json",
+          "startMs": 53.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/LAO.json",
+          "startMs": 53.700000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/OMN.json",
+          "startMs": 54.200000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/SLB.json",
+          "startMs": 54.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/MHL.json",
+          "startMs": 54.700000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/THA.json",
+          "startMs": 55
+        },
+        {
+          "path": "/current/data/outlines/overview/MYS.json",
+          "startMs": 55.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/TKM.json",
+          "startMs": 56.700000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/AFG.json",
+          "startMs": 56.799999999813735
+        },
+        {
+          "path": "/current/data/outlines/PHL.json",
+          "startMs": 57
+        },
+        {
+          "path": "/current/data/outlines/overview/MMR.json",
+          "startMs": 57.5
+        },
+        {
+          "path": "/current/data/outlines/overview/UZB.json",
+          "startMs": 58.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/PNG.json",
+          "startMs": 58.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/VNM.json",
+          "startMs": 60.200000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/FSM.json",
+          "startMs": 74.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/PAK.json",
+          "startMs": 75.29999999981374
+        },
+        {
+          "path": "/current/data/outlines/overview/IRN.json",
+          "startMs": 76.20000000018626
+        },
+        {
+          "path": "/current/data/outlines/overview/MNG.json",
+          "startMs": 88.29999999981374
+        },
+        {
+          "path": "/current/data/outlines/IDN.json",
+          "startMs": 88.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/JPN.json",
+          "startMs": 88.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/KAZ.json",
+          "startMs": 89.20000000018626
+        },
+        {
+          "path": "/current/data/outlines/overview/IND.json",
+          "startMs": 108.79999999981374
+        },
+        {
+          "path": "/current/data/outlines/CHN.json",
+          "startMs": 109
+        },
+        {
+          "path": "/current/data/outlines/overview/AUS.json",
+          "startMs": 111.29999999981374
+        },
+        {
+          "path": "/current/data/outlines/overview/KIR.json",
+          "startMs": 144
+        },
+        {
+          "path": "/current/data/outlines/overview/UMI.json",
+          "startMs": 147.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/RUS.json",
+          "startMs": 181.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/USA.json",
+          "startMs": 216.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/MAC.json",
+          "startMs": 563.3999999999069
+        },
+        {
+          "path": "/current/data/outlines/HKG.json",
+          "startMs": 563.6000000000931
+        }
+      ],
+      "visitedPreserved": true,
+      "codewordPreserved": true,
+      "fullCountryDownloads": 0
+    },
+    {
+      "key": "japan-islands",
+      "selectedId": "JPN:ADM2:22064153B46179239075141",
+      "coarseWorldCharacters": 2992,
+      "mediumWorldCharacters": 362586,
+      "fineWorldCharacters": 362586,
+      "selectedPathChanged": false,
+      "timingUnthrottled": {
+        "zoomStartedMs": 358.5,
+        "detailedCanvasReadyMs": 487,
+        "refinementDurationMs": 128.5
+      },
+      "outlineRequests": [
+        {
+          "path": "/current/data/outlines/overview/SCR.json",
+          "startMs": 39.5
+        },
+        {
+          "path": "/current/data/outlines/overview/NRU.json",
+          "startMs": 39.700000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/MAC.json",
+          "startMs": 39.700000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/SGP.json",
+          "startMs": 40.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/GUM.json",
+          "startMs": 40.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/HKG.json",
+          "startMs": 40.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/KAS.json",
+          "startMs": 41.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/MNP.json",
+          "startMs": 41.5
+        },
+        {
+          "path": "/current/data/outlines/overview/BRN.json",
+          "startMs": 41.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/PGA.json",
+          "startMs": 42.200000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/BTN.json",
+          "startMs": 42.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/MDV.json",
+          "startMs": 42.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/LKA.json",
+          "startMs": 43.200000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/PLW.json",
+          "startMs": 43.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/TWN.json",
+          "startMs": 43.5
+        },
+        {
+          "path": "/current/data/outlines/overview/KHM.json",
+          "startMs": 43.8000000002794
+        },
+        {
+          "path": "/current/data/outlines/overview/BGD.json",
+          "startMs": 44.5
+        },
+        {
+          "path": "/current/data/outlines/overview/NPL.json",
+          "startMs": 44.8000000002794
+        },
+        {
+          "path": "/current/data/outlines/overview/TJK.json",
+          "startMs": 45
+        },
+        {
+          "path": "/current/data/outlines/overview/PRK.json",
+          "startMs": 45.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/KOR.json",
+          "startMs": 45.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/KGZ.json",
+          "startMs": 46
+        },
+        {
+          "path": "/current/data/outlines/overview/LAO.json",
+          "startMs": 46.5
+        },
+        {
+          "path": "/current/data/outlines/overview/MHL.json",
+          "startMs": 46.700000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/THA.json",
+          "startMs": 47.200000000186265
+        },
+        {
+          "path": "/current/data/outlines/overview/MYS.json",
+          "startMs": 47.5
+        },
+        {
+          "path": "/current/data/outlines/overview/AFG.json",
+          "startMs": 47.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/PHL.json",
+          "startMs": 49.3000000002794
+        },
+        {
+          "path": "/current/data/outlines/overview/MMR.json",
+          "startMs": 50
+        },
+        {
+          "path": "/current/data/outlines/overview/UZB.json",
+          "startMs": 50.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/PNG.json",
+          "startMs": 51.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/VNM.json",
+          "startMs": 52
+        },
+        {
+          "path": "/current/data/outlines/overview/FSM.json",
+          "startMs": 52.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/PAK.json",
+          "startMs": 52.8000000002794
+        },
+        {
+          "path": "/current/data/outlines/overview/MNG.json",
+          "startMs": 53.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/IDN.json",
+          "startMs": 66.70000000018626
+        },
+        {
+          "path": "/current/data/outlines/JPN.json",
+          "startMs": 67.70000000018626
+        },
+        {
+          "path": "/current/data/outlines/overview/KAZ.json",
+          "startMs": 67.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/IND.json",
+          "startMs": 83.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/CHN.json",
+          "startMs": 85.70000000018626
+        },
+        {
+          "path": "/current/data/outlines/overview/KIR.json",
+          "startMs": 85.8000000002794
+        },
+        {
+          "path": "/current/data/outlines/overview/UMI.json",
+          "startMs": 87.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/RUS.json",
+          "startMs": 117
+        },
+        {
+          "path": "/current/data/outlines/USA.json",
+          "startMs": 117.20000000018626
+        },
+        {
+          "path": "/current/data/outlines/KOR.json",
+          "startMs": 422.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/GUM.json",
+          "startMs": 753.2000000001863
+        },
+        {
+          "path": "/current/data/outlines/overview/HKG.json",
+          "startMs": 753.3000000002794
+        },
+        {
+          "path": "/current/data/outlines/overview/KAS.json",
+          "startMs": 753.3999999999069
+        },
+        {
+          "path": "/current/data/outlines/overview/BRN.json",
+          "startMs": 754.7000000001863
+        },
+        {
+          "path": "/current/data/outlines/overview/BTN.json",
+          "startMs": 814.5
+        },
+        {
+          "path": "/current/data/outlines/overview/BGD.json",
+          "startMs": 822.7000000001863
+        },
+        {
+          "path": "/current/data/outlines/overview/KGZ.json",
+          "startMs": 822.8000000002794
+        },
+        {
+          "path": "/current/data/outlines/overview/AFG.json",
+          "startMs": 831.8999999999069
+        },
+        {
+          "path": "/current/data/outlines/overview/FSM.json",
+          "startMs": 832.2000000001863
+        },
+        {
+          "path": "/current/data/outlines/IDN.json",
+          "startMs": 832.3000000002794
+        }
+      ],
+      "visitedPreserved": true,
+      "codewordPreserved": true,
+      "fullCountryDownloads": 0
+    },
+    {
+      "key": "norway-fjords",
+      "selectedId": "NOR:ADM2:86288312B18429617226236",
+      "coarseWorldCharacters": 16461,
+      "mediumWorldCharacters": 421261,
+      "fineWorldCharacters": 421261,
+      "selectedPathChanged": false,
+      "timingUnthrottled": {
+        "zoomStartedMs": 401.1999999997206,
+        "detailedCanvasReadyMs": 506.10000000009313,
+        "refinementDurationMs": 104.90000000037253
+      },
+      "outlineRequests": [
+        {
+          "path": "/current/data/outlines/overview/VAT.json",
+          "startMs": 42.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/MCO.json",
+          "startMs": 42.1999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/GIB.json",
+          "startMs": 42.299999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/SMR.json",
+          "startMs": 43.1999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/JEY.json",
+          "startMs": 43.299999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/WSB.json",
+          "startMs": 43.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/LIE.json",
+          "startMs": 43.799999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/ESB.json",
+          "startMs": 44.1999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/AND.json",
+          "startMs": 44.299999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/MLT.json",
+          "startMs": 44.6999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/GGY.json",
+          "startMs": 44.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/IMN.json",
+          "startMs": 45.299999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/CNM.json",
+          "startMs": 45.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/LUX.json",
+          "startMs": 45.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/CYN.json",
+          "startMs": 46.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/ALA.json",
+          "startMs": 46.1999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/FRO.json",
+          "startMs": 46.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/LBN.json",
+          "startMs": 46.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/CYP.json",
+          "startMs": 47
+        },
+        {
+          "path": "/current/data/outlines/overview/XKX.json",
+          "startMs": 47
+        },
+        {
+          "path": "/current/data/outlines/overview/MNE.json",
+          "startMs": 47.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/MKD.json",
+          "startMs": 47.6999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/SVN.json",
+          "startMs": 47.799999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/ALB.json",
+          "startMs": 48.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/ARM.json",
+          "startMs": 48.799999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/BEL.json",
+          "startMs": 48.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/CHE.json",
+          "startMs": 49.5
+        },
+        {
+          "path": "/current/data/outlines/overview/BIH.json",
+          "startMs": 49.6999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/MDA.json",
+          "startMs": 49.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/SVK.json",
+          "startMs": 50.5
+        },
+        {
+          "path": "/current/data/outlines/overview/GEO.json",
+          "startMs": 50.6999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/SRB.json",
+          "startMs": 50.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/BGR.json",
+          "startMs": 51.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/CZE.json",
+          "startMs": 51.5
+        },
+        {
+          "path": "/current/data/outlines/overview/LTU.json",
+          "startMs": 52
+        },
+        {
+          "path": "/current/data/outlines/overview/EST.json",
+          "startMs": 52.5
+        },
+        {
+          "path": "/current/data/outlines/overview/AZE.json",
+          "startMs": 52.799999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/HUN.json",
+          "startMs": 53.299999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/IRL.json",
+          "startMs": 53.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/AUT.json",
+          "startMs": 53.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/LVA.json",
+          "startMs": 54.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/HRV.json",
+          "startMs": 54.799999999813735
+        },
+        {
+          "path": "/current/data/outlines/overview/TUN.json",
+          "startMs": 54.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/DNK.json",
+          "startMs": 55.5
+        },
+        {
+          "path": "/current/data/outlines/overview/SYR.json",
+          "startMs": 55.6999999997206
+        },
+        {
+          "path": "/current/data/outlines/ROU.json",
+          "startMs": 68.79999999981374
+        },
+        {
+          "path": "/current/data/outlines/overview/BLR.json",
+          "startMs": 69.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/ISL.json",
+          "startMs": 69.5
+        },
+        {
+          "path": "/current/data/outlines/overview/GRC.json",
+          "startMs": 72
+        },
+        {
+          "path": "/current/data/outlines/overview/POL.json",
+          "startMs": 72.1999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/IRQ.json",
+          "startMs": 72.5
+        },
+        {
+          "path": "/current/data/outlines/overview/DEU.json",
+          "startMs": 86.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/TKM.json",
+          "startMs": 86.5
+        },
+        {
+          "path": "/current/data/outlines/overview/TUR.json",
+          "startMs": 86.6999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/AFG.json",
+          "startMs": 87.29999999981374
+        },
+        {
+          "path": "/current/data/outlines/overview/ITA.json",
+          "startMs": 88.29999999981374
+        },
+        {
+          "path": "/current/data/outlines/overview/UZB.json",
+          "startMs": 88.89999999990687
+        },
+        {
+          "path": "/current/data/outlines/overview/FRA.json",
+          "startMs": 89.29999999981374
+        },
+        {
+          "path": "/current/data/outlines/overview/UKR.json",
+          "startMs": 89.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/PAK.json",
+          "startMs": 89.79999999981374
+        },
+        {
+          "path": "/current/data/outlines/MAR.json",
+          "startMs": 105.1999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/FIN.json",
+          "startMs": 105.60000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/GBR.json",
+          "startMs": 105.6999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/IRN.json",
+          "startMs": 120.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/PRT.json",
+          "startMs": 120.79999999981374
+        },
+        {
+          "path": "/current/data/outlines/overview/SWE.json",
+          "startMs": 121.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/DZA.json",
+          "startMs": 121.5
+        },
+        {
+          "path": "/current/data/outlines/overview/ESP.json",
+          "startMs": 121.6999999997206
+        },
+        {
+          "path": "/current/data/outlines/overview/KAZ.json",
+          "startMs": 122
+        },
+        {
+          "path": "/current/data/outlines/NLD.json",
+          "startMs": 122.10000000009313
+        },
+        {
+          "path": "/current/data/outlines/overview/GRL.json",
+          "startMs": 139
+        },
+        {
+          "path": "/current/data/outlines/NOR.json",
+          "startMs": 139.39999999990687
+        },
+        {
+          "path": "/current/data/outlines/RUS.json",
+          "startMs": 155.60000000009313
+        }
+      ],
+      "visitedPreserved": true,
+      "codewordPreserved": true,
+      "fullCountryDownloads": 0
+    },
+    {
+      "key": "alaska",
+      "selectedId": "USA:ADM2:52423323B58185108898",
+      "coarseWorldCharacters": 21456,
+      "mediumWorldCharacters": 503598,
+      "fineWorldCharacters": 503598,
+      "selectedPathChanged": false,
+      "timingUnthrottled": {
+        "zoomStartedMs": 296.90000000037253,
+        "detailedCanvasReadyMs": 356.20000000018626,
+        "refinementDurationMs": 59.299999999813735
+      },
+      "outlineRequests": [
+        {
+          "path": "/current/data/outlines/overview/CAN.json",
+          "startMs": 41.8000000002794
+        },
+        {
+          "path": "/current/data/outlines/RUS.json",
+          "startMs": 41.90000000037253
+        },
+        {
+          "path": "/current/data/outlines/USA.json",
+          "startMs": 41.90000000037253
+        }
+      ],
+      "visitedPreserved": true,
+      "codewordPreserved": true,
+      "fullCountryDownloads": 0
+    }
+  ],
+  "errors": [],
+  "tierCancellation": {
+    "obsoleteOverviewsCanceled": true,
+    "exactDetailReady": true,
+    "codewordPreserved": true,
+    "requests": [
+      "/current/data/outlines/overview/SCR.json",
+      "/current/data/outlines/overview/NRU.json",
+      "/current/data/outlines/overview/MAC.json",
+      "/current/data/outlines/CHN.json",
+      "/current/data/outlines/MAC.json",
+      "/current/data/outlines/HKG.json"
+    ],
+    "canceled": [
+      {
+        "path": "/current/data/outlines/overview/SCR.json",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "path": "/current/data/outlines/overview/NRU.json",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "path": "/current/data/outlines/overview/MAC.json",
+        "error": "net::ERR_ABORTED"
+      }
+    ]
+  },
+  "failureRetry": {
+    "failures": [
+      "JourneySphere: 503 loading outline HKG"
+    ],
+    "mapUsable": true,
+    "retrySucceeded": true,
+    "codewordPreserved": true
+  },
+  "mobileRefinement": {
+    "aligned": true,
+    "visitedPreserved": true,
+    "fineOnlyTouchTogglesVisit": true,
+    "destroyRemovesTiles": true,
+    "timingThrottled": {
+      "zoomStartedMs": 2301.5,
+      "detailedCanvasReadyMs": 3773.2999999998137,
+      "refinementDurationMs": 1471.7999999998137
+    }
+  },
+  "passed": true
+}
