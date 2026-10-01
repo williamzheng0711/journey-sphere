@@ -95,7 +95,7 @@ function stylesheet(root, href) {
 
 let leafletReady;
 function importLeaflet() {
-  return leafletReady ||= import(new URL('../vendor/leaflet/leaflet-src.esm.js', import.meta.url))
+  return leafletReady ||= import(new URL('../vendor/leaflet/leaflet.esm.min.js', import.meta.url))
     .then(module => module.default || module)
     .catch(error => { leafletReady = undefined; throw error; });
 }

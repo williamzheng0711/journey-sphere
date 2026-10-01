@@ -126,7 +126,7 @@ test('compact world retains every country and valid closed paths', async () => {
     assert.ok(feature.bounds.every(Number.isFinite));
     for (const [ring] of feature.d.matchAll(/M[^M]+/g)) {
       assert.ok(ring.trim().endsWith('z'));
-      assert.ok([...ring.matchAll(/(?:M|l)-?\d+ -?\d+/g)].length >= 4);
+      assert.ok([...ring.matchAll(/-?\d+/g)].length >= 8);
     }
   }
 });

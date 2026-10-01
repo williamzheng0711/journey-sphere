@@ -37,6 +37,20 @@ test('static export preserves exact selected geometry, canonical runtime and rep
     assert.ok(first.files['data/outlines/overview/HKG.json']);
     assert.ok(first.files['data/outlines/overview/provenance.json']);
     assert.ok(first.files['data/outlines/sources.json']);
+    for (const [code, entry] of Object.entries(manifest.outlines.countries)) {
+      for (const fragment of entry.fragments || []) {
+        assert.ok(first.files[`data/outlines/fragments/${code}/${fragment.id}.json`]);
+      }
+    }
+    if (Object.values(manifest.outlines.countries).some(entry => entry.fragments)) {
+      assert.ok(first.files['data/outlines/fragments/manifest.json']);
+      assert.ok(first.files['data/outlines/fragments/provenance.json']);
+    }
+    for (const file of ['leaflet.esm.min.js', 'leaflet-src.esm.js', 'engine-build.json', 'LICENSE', 'leaflet.css', 'images/marker-icon.png']) {
+      const vendorFile = `vendor/leaflet/${file}`;
+      assert.ok(first.files[vendorFile], `${vendorFile} travels with the static deployment`);
+      assert.deepEqual(await readFile(join(outputDir, vendorFile)), await readFile(new URL(`../${vendorFile}`, import.meta.url)));
+    }
     assert.deepEqual(deployed.outlines, manifest.outlines);
     for (const [file, hash] of Object.entries(first.files)) {
       assert.equal(createHash('sha256').update(await readFile(join(outputDir, file))).digest('hex'), hash);

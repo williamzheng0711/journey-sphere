@@ -37,21 +37,27 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "check": "node --check src/index.js && node --check src/compiled.js && node --check src/compiled-layer.js && node --check src/outline-detail.js && node --check src/geometry.js && node --check src/state.js && node --check scripts/build-detail-atlas.mjs && node --check scripts/build-outline-overview.mjs && node --check scripts/build-compiled-atlas.mjs && node --check embed.js && node --check src/embed.js && node --check src/place-names.js && node --check src/places.js && node --check scripts/build-embed-data.mjs && npm test",
+    "check": "node --check src/index.js && node --check src/compiled.js && node --check src/compiled-layer.js && node --check src/outline-detail.js && node --check src/geometry.js && node --check src/state.js && node --check scripts/build-detail-atlas.mjs && node --check scripts/build-outline-overview.mjs && node --check scripts/build-compiled-atlas.mjs && node --check embed.js && node --check src/embed.js && node --check src/place-names.js && node --check src/places.js && node --check scripts/build-embed-data.mjs && node --check scripts/build-leaflet-engine.mjs && npm test",
     "pack:check": "npm pack --dry-run",
     "validate:data": "node scripts/validate-atlas.mjs",
     "build:data": "node scripts/build-atlas.mjs && npm run build:compiled",
     "build:compiled": "node scripts/build-compiled-atlas.mjs && npm run build:embed",
     "build:outlines": "node scripts/build-detail-atlas.mjs",
     "build:overview": "node scripts/build-outline-overview.mjs",
+    "build:fragments": "node scripts/build-outline-fragments.mjs",
     "build:embed": "node scripts/build-embed-data.mjs",
     "test:embed": "node scripts/test-embed.mjs",
-    "test:refinement": "node scripts/test-embed-refinement.mjs"
+    "test:refinement": "node scripts/test-embed-refinement.mjs",
+    "test:fragments": "node scripts/test-outline-fragments.mjs",
+    "build:engine": "node scripts/build-leaflet-engine.mjs",
+    "check:engine": "node scripts/build-leaflet-engine.mjs --check",
+    "test:embed:startup": "node scripts/test-embed-startup.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
-    "polygon-clipping": "0.15.7"
+    "polygon-clipping": "0.15.7",
+    "terser": "5.51.2"
   }
 }

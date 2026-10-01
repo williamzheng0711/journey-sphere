@@ -4,6 +4,7 @@ const MAX_CACHE = 32;
 const MAX_CONCURRENT = 3;
 const MOVE_DEBOUNCE = 60;
 const FOCAL_EXCLUSIVE_MS = 2000;
+const FRAGMENT_BUFFER_PX = 512;
 
 const inert = () => ({ get: () => null, load: () => Promise.resolve([]), ready: Promise.resolve([]), destroy() {} });
 function abortedHandle(reason) {
@@ -59,7 +60,7 @@ export function decodeOutlinePath(feature) {
 function sameFingerprint(a, b) {
   return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => v === b[i]);
 }
-function validateRecord(data, code, manifest) {
+function validateRecord(data, code, manifest, fragment) {
   if (!object(data) || data.format !== 1 || data.version !== manifest.version ||
       data.extent !== EXTENT || !sameFingerprint(data.fingerprint, manifest.fingerprint) ||
       !Array.isArray(data.features) || data.features.length !== 1) {
@@ -72,6 +73,10 @@ function validateRecord(data, code, manifest) {
       feature.bounds[1] > feature.bounds[3]) {
     throw new Error(`JourneySphere: invalid detailed outline geometry for ${code}.`);
   }
+  if (fragment && (data.fragment !== fragment.id ||
+      !feature.bounds.every((value, index) => value === fragment.bounds[index]))) {
+    throw new Error(`JourneySphere: invalid detailed outline fragment for ${code}.`);
+  }
   const d = decodeOutlinePath(feature);
   if (feature.strokeWidths !== undefined &&
       (!Array.isArray(feature.strokeWidths) || feature.strokeWidths.length !== (d.match(/M/g) || []).length ||
@@ -80,7 +85,7 @@ function validateRecord(data, code, manifest) {
   }
   // Drop transport arrays after expansion; only keep a validated spatial index.
   const { pathEncoding, paths, parts: ignoredParts, ...record } = feature;
-  const parts = manifest.outlines?.countries?.[code]?.parts;
+  const parts = fragment ? [fragment.bounds] : manifest.outlines?.countries?.[code]?.parts;
   if (Array.isArray(parts) && parts.length && parts.every(part => Array.isArray(part) && part.length === 4 &&
       part.every(Number.isFinite) && part[0] <= part[2] && part[1] <= part[3])) {
     const bounds = parts.reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]),
@@ -108,7 +113,7 @@ function projected(value, map) {
   };
 }
 
-function viewport(map) {
+function viewport(map, bufferPixels = 0, zoom = map.getZoom?.()) {
   if (typeof map.getBounds !== 'function') return null;
   const bounds = map.getBounds();
   const sw = typeof bounds?.getSouthWest === 'function' ? bounds.getSouthWest() : { lat: bounds?.getSouth?.(), lng: bounds?.getWest?.() };
@@ -119,7 +124,8 @@ function viewport(map) {
   let left = a.x; let right = b.x;
   if (Number.isFinite(west) && Number.isFinite(east) && east < west) right += EXTENT;
   if (right < left) right += EXTENT;
-  const margin = Math.max(256, (right - left) * 0.04);
+  const margin = Math.max(256, (right - left) * 0.04,
+    bufferPixels * EXTENT / (WORLD * 2 ** zoom));
   return { left: left - margin, right: right + margin, top: Math.min(a.y, b.y) - margin, bottom: Math.max(a.y, b.y) + margin };
 }
 
@@ -146,6 +152,7 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
   const detailZoom = Number.isFinite(config.detailZoom) ? config.detailZoom : minZoom;
   const countries = config.countries;
   const cache = new Map();
+  const composites = new Map();
   const pending = new Map();
   const queue = [];
   const queued = new Map();
@@ -169,10 +176,36 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
   const keyFor = (code, zoom) => `${code}:${zoom < detailZoom && countries[code]?.overviewFile &&
     countries[code].overviewFile !== countries[code].file ? 'overview' : 'detail'}`;
   const codeFor = key => key.split(':')[0];
+  const fragmentFor = key => countries[codeFor(key)]?.fragments?.find(fragment => key === `${codeFor(key)}:fragment:${fragment.id}`);
   const fileFor = key => {
     const entry = countries[codeFor(key)];
-    return key.endsWith(':overview') ? entry?.overviewFile : entry?.file;
+    return fragmentFor(key)?.file || (key.endsWith(':overview') ? entry?.overviewFile : entry?.file);
   };
+  const neededFragments = (code, zoom) => {
+    const buffered = viewport(map, FRAGMENT_BUFFER_PX, zoom);
+    return buffered ? (countries[code]?.fragments || []).filter(fragment => intersectsBounds(fragment.bounds, buffered)) : [];
+  };
+  function composite(code, zoom) {
+    const required = neededFragments(code, zoom);
+    if (!required.length || required.some(fragment => !cache.has(`${code}:fragment:${fragment.id}`))) return null;
+    // Include previously cached whole polygons as well. New view coverage is
+    // checked synchronously, before moveend and the deferred download callback.
+    const keys = countries[code].fragments.map(fragment => `${code}:fragment:${fragment.id}`).filter(key => cache.has(key));
+    const signature = keys.join('|');
+    let assembled = composites.get(code);
+    if (!assembled || assembled.signature !== signature) {
+      const records = keys.map(key => cache.get(key));
+      const bounds = records.reduce((a, record) => [Math.min(a[0], record.bounds[0]), Math.min(a[1], record.bounds[1]),
+        Math.max(a[2], record.bounds[2]), Math.max(a[3], record.bounds[3])], [Infinity, Infinity, -Infinity, -Infinity]);
+      const record = { ...records[0], d: records.map(record => record.d).join(' '), bounds,
+        parts: records.flatMap(record => record.parts || [record.bounds]) };
+      if (records.every(record => Array.isArray(record.strokeWidths))) record.strokeWidths = records.flatMap(record => record.strokeWidths);
+      else delete record.strokeWidths;
+      assembled = { signature, record }; composites.set(code, assembled);
+    }
+    for (const key of keys) { const record = cache.get(key); cache.delete(key); cache.set(key, record); }
+    return assembled.record;
+  }
 
   function visible() {
     if (destroyed || typeof map.getZoom !== 'function' || map.getZoom() < minZoom) return [];
@@ -186,12 +219,16 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
       const dy = Math.max(bounds[1] - centerY, 0, centerY - bounds[3]);
       return dx * dx + dy * dy;
     }));
+    // A tile margin completes an already visible country's geometry. It must
+    // not activate an otherwise offscreen country on a narrow mobile view.
     return Object.entries(countries).filter(([, entry]) => intersects(entry, view)).sort((a, b) => {
       const area = e => Array.isArray(e.bounds) && e.bounds.length === 4 && e.bounds.every(Number.isFinite)
         ? Math.max(0, e.bounds[2] - e.bounds[0]) * Math.max(0, e.bounds[3] - e.bounds[1]) : Infinity;
       // Refine the user's focal area before distant islands in a wide view.
       return distance(a[1]) - distance(b[1]) || area(a[1]) - area(b[1]);
-    }).map(([code]) => cache.has(`${code}:detail`) ? `${code}:detail` : keyFor(code, map.getZoom()));
+    }).flatMap(([code, entry]) => entry.fragments
+      ? neededFragments(code, map.getZoom()).map(fragment => `${code}:fragment:${fragment.id}`)
+      : cache.has(`${code}:detail`) ? `${code}:detail` : keyFor(code, map.getZoom()));
   }
   function updateVisibility() {
     viewCodes = visible();
@@ -239,12 +276,14 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
       // outlines until the view changes instead of repeatedly downloading them.
       if (evict === undefined) break;
       cache.delete(evict);
+      composites.delete(codeFor(evict));
     }
   }
   function insert(code, record) {
     if (destroyed) return;
     if (cache.has(code)) cache.delete(code);
     cache.set(code, record);
+    composites.delete(codeFor(code));
     if (code.endsWith(':detail')) cache.delete(`${codeFor(code)}:overview`);
     trimCache();
   }
@@ -263,7 +302,7 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
       if (!response.ok) throw new Error(`JourneySphere: ${response.status} loading outline ${code}`);
       return response.json();
     }).then(data => {
-      const record = validateRecord(data, code, manifest);
+      const record = validateRecord(data, code, manifest, fragmentFor(key));
       if (destroyed || controller.signal.aborted) throw controller.signal.reason || new Error('outline detail aborted');
       insert(key, record);
       if (viewCodes.includes(key)) { try { onChange?.(record, code); } catch (error) { fail(error); } }
@@ -286,7 +325,7 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
       // Give the focal country the available download bandwidth, then fill the
       // remaining viewport in parallel. A cached focal coast needs no gate.
       if (active >= MAX_CONCURRENT) break;
-      const index = focalBlocked ? queue.findIndex(item => !item.obsolete && item.code === focalKey) : 0;
+      const index = focalBlocked ? queue.findIndex(item => !item.obsolete && codeFor(item.code) === codeFor(focalKey)) : 0;
       if (index < 0) break;
       const [item] = queue.splice(index, 1);
       if (queued.get(item.code) === item) queued.delete(item.code);
@@ -327,7 +366,8 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
     clearTimeout(timer);
     timer = setTimeout(() => {
       timer = undefined; updateVisibility();
-      const request = Promise.all(viewCodes.map(code => enqueue(code))).then(records => records.filter(Boolean));
+      const codes = [...viewCodes];
+      const request = Promise.all(codes.map(code => enqueue(code))).then(records => aggregate(codes, records));
       latest = request; request.catch(fail);
     }, MOVE_DEBOUNCE);
   }
@@ -336,10 +376,19 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
     clearTimeout(timer); timer = undefined;
     updateVisibility();
     const codes = [...viewCodes];
-    const request = Promise.all(codes.map(code => enqueue(code))).then(records => records.filter(Boolean));
+    const request = Promise.all(codes.map(code => enqueue(code))).then(records => aggregate(codes, records));
     latest = request;
     request.catch(() => {});
     return request;
+  }
+  function aggregate(keys, records) {
+    const byCountry = new Map();
+    keys.forEach((key, index) => {
+      const code = codeFor(key);
+      const record = countries[code]?.fragments ? composite(code, map.getZoom()) : records[index];
+      if (record) byCountry.set(code, record);
+    });
+    return [...byCountry.values()];
   }
   const onMove = schedule;
   map.on?.('moveend', onMove); map.on?.('zoomend', onMove);
@@ -358,11 +407,12 @@ export function createOutlineDetail({ map, manifest, dataUrl = './', signal, onC
       if (!task.settled) { task.settled = true; task.reject(reason); }
       task.controller.abort(reason);
     });
-    cache.clear(); pending.clear();
+    cache.clear(); pending.clear(); composites.clear();
   }
   return {
     get(code, zoom = map.getZoom?.()) {
       if (zoom < minZoom) return null;
+      if (countries[code]?.fragments) return composite(code, zoom);
       // Keep the best cached coastline visible while its next tier downloads.
       // Zooming out can reuse exact detail without an overview request.
       const key = cache.has(`${code}:detail`) ? `${code}:detail` : keyFor(code, zoom);

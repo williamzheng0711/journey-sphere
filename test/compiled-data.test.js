@@ -173,6 +173,50 @@ async function outlineFixture(dir) {
   return { exact, overview, payload };
 }
 
+test('lossless outline fragments are compiled deterministically and stale or incomplete assets leave the working atlas intact', async () => {
+  const dir = await fixture();
+  try {
+    const prepare = async () => {
+      const { exact } = await outlineFixture(dir);
+      const source = await readFile(path.join(dir, 'outlines/AAA.json'));
+      const payload = { ...JSON.parse(source), fragment: 0 };
+      const bytes = JSON.stringify(payload);
+      const group = { sourceSha256: createHash('sha256').update(source).digest('hex'), fragments: [{
+        id: 0, file: '../outlines/fragments/AAA/0.json', bounds: exact.countries.AAA.bounds,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+      }] };
+      const fragmentManifest = { format: 1, version: exact.version, extent: exact.extent, fingerprint: exact.fingerprint,
+        countries: { AAA: group } };
+      await mkdir(path.join(dir, 'outlines/fragments/AAA'), { recursive: true });
+      await writeFile(path.join(dir, 'outlines/fragments/AAA/0.json'), bytes);
+      await writeFile(path.join(dir, 'outlines/fragments/manifest.json'), JSON.stringify(fragmentManifest));
+      return fragmentManifest;
+    };
+    const initial = await prepare(); await build(dir);
+    const output = path.join(dir, 'compiled/manifest.json');
+    const before = await readFile(output, 'utf8');
+    const manifest = JSON.parse(before);
+    assert.deepEqual(manifest.outlines.countries.AAA.fragments, initial.countries.AAA.fragments.map(({ sha256, ...fragment }) => fragment));
+    await build(dir); assert.equal(await readFile(output, 'utf8'), before);
+    const cases = [
+      { change: data => { data.fingerprint = [0, 0]; }, error: /fragment manifest identity/ },
+      { change: data => { data.countries.AAA.sourceSha256 = 'stale'; }, error: /fragments are stale/ },
+      { change: data => { data.countries.AAA.fragments[0].file = '../outside.json'; }, error: /fragment index/ },
+      { change: data => { data.countries.AAA.fragments[0].bounds = [1, 1, 2, 2]; }, error: /fragment index/ },
+      { change: data => { data.countries.AAA.fragments[0].sha256 = 'corrupt'; }, error: /fragment data does not match/ },
+    ];
+    for (const { change, error } of cases) {
+      const data = await prepare(); change(data);
+      await writeFile(path.join(dir, 'outlines/fragments/manifest.json'), JSON.stringify(data));
+      await assert.rejects(build(dir), error);
+      assert.equal(await readFile(output, 'utf8'), before);
+    }
+    await prepare(); await rm(path.join(dir, 'outlines/fragments/AAA/0.json'));
+    await assert.rejects(build(dir), /ENOENT/);
+    assert.equal(await readFile(output, 'utf8'), before);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 async function fixture() {
   const dir = await mkdtemp(path.join(tmpdir(), 'journeysphere-compiled-'));
   await mkdir(path.join(dir, 'countries'));

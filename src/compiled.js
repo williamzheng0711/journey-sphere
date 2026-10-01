@@ -38,9 +38,17 @@ function validateManifest(manifest) {
           (entry.overviewFile !== undefined && (typeof entry.overviewFile !== 'string' || !entry.overviewFile)) ||
           !validBounds(entry.bounds) || (entry.parts !== undefined &&
             (!Array.isArray(entry.parts) || !entry.parts.length || !entry.parts.every(validBounds))) ||
+          (entry.fragments !== undefined && (!Array.isArray(entry.fragments) || !entry.fragments.length ||
+            new Set(entry.fragments.map(fragment => fragment?.id)).size !== entry.fragments.length ||
+            entry.fragments.some(fragment => !isObject(fragment) || !Number.isInteger(fragment.id) || fragment.id < 0 ||
+              typeof fragment.file !== 'string' || !fragment.file || !validBounds(fragment.bounds)))) ||
           !Array.isArray(entry.regionIds) || new Set(entry.regionIds).size !== entry.regionIds.length ||
           entry.regionIds.some(id => typeof id !== 'string' || !id.startsWith(`${code}:ADM0:`))) {
         throw new Error('JourneySphere: invalid detailed outline manifest.');
+      }
+      if (entry.fragments && (entry.regionIds.length || !entry.parts || entry.fragments.length !== entry.parts.length ||
+          entry.fragments.some((fragment, index) => !fragment.bounds.every((value, axis) => value === entry.parts[index][axis])))) {
+        throw new Error('JourneySphere: invalid detailed outline fragment manifest.');
       }
     }
   }

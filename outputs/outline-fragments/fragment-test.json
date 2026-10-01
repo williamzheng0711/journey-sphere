@@ -1,0 +1,352 @@
+{
+  "ok": true,
+  "fragmentSchema": "whole-polygon USA fragments",
+  "checks": [
+    {
+      "case": "minified Leaflet namespace and property compatibility",
+      "exports": 78
+    },
+    {
+      "case": "selective mainland, held fallback, exact completion, real hit and palette",
+      "required": [
+        2
+      ],
+      "requests": [
+        {
+          "id": 2,
+          "pathname": "/data/outlines/fragments/USA/2.json"
+        }
+      ],
+      "point": {
+        "x": 604,
+        "y": 389,
+        "lat": 37.794592824285104,
+        "lng": -122.42889404296876,
+        "coarseUnderlay": true
+      },
+      "pixels": {
+        "before": [
+          [
+            129,
+            145,
+            174,
+            232
+          ]
+        ],
+        "after": [
+          [
+            129,
+            145,
+            174,
+            232
+          ]
+        ]
+      },
+      "screenshot": "mainland-complete.png"
+    },
+    {
+      "case": "selective alaska, held fallback, exact completion, real hit and palette",
+      "required": [
+        0
+      ],
+      "requests": [
+        {
+          "id": 0,
+          "pathname": "/data/outlines/fragments/USA/0.json"
+        }
+      ],
+      "point": {
+        "x": 706,
+        "y": 296,
+        "lat": 61.472890308815316,
+        "lng": -149.26574707031253,
+        "coarseUnderlay": true
+      },
+      "pixels": {
+        "before": [
+          [
+            129,
+            145,
+            174,
+            232
+          ]
+        ],
+        "after": [
+          [
+            129,
+            145,
+            174,
+            232
+          ]
+        ]
+      },
+      "screenshot": "alaska-complete.png"
+    },
+    {
+      "case": "selective pacific, held fallback, exact completion, real hit and palette",
+      "required": [
+        3
+      ],
+      "requests": [
+        {
+          "id": 3,
+          "pathname": "/data/outlines/fragments/USA/3.json"
+        }
+      ],
+      "point": {
+        "x": 643,
+        "y": 329,
+        "lat": 13.64064865171836,
+        "lng": 144.86846923828128,
+        "coarseUnderlay": false
+      },
+      "pixels": {
+        "before": [
+          [
+            0,
+            32,
+            91,
+            112
+          ]
+        ],
+        "after": [
+          [
+            129,
+            145,
+            174,
+            232
+          ]
+        ]
+      },
+      "screenshot": "pacific-complete.png"
+    },
+    {
+      "case": "selective aleutian, held fallback, exact completion, real hit and palette",
+      "required": [
+        0,
+        4
+      ],
+      "requests": [
+        {
+          "id": 0,
+          "pathname": "/data/outlines/fragments/USA/0.json"
+        },
+        {
+          "id": 4,
+          "pathname": "/data/outlines/fragments/USA/4.json"
+        }
+      ],
+      "point": {
+        "x": 238,
+        "y": 404,
+        "lat": 52.0862573323384,
+        "lng": 177.61047363281253,
+        "coarseUnderlay": true
+      },
+      "pixels": {
+        "before": [
+          [
+            129,
+            145,
+            174,
+            232
+          ]
+        ],
+        "after": [
+          [
+            129,
+            145,
+            174,
+            232
+          ]
+        ]
+      },
+      "screenshot": "aleutian-complete.png"
+    },
+    {
+      "case": "held same-zoom mainland→Alaska→mainland, cancellation, retry, immutable composites and cached scene coverage",
+      "requests": [
+        {
+          "id": 2,
+          "pathname": "/data/outlines/fragments/USA/2.json"
+        },
+        {
+          "id": 0,
+          "pathname": "/data/outlines/fragments/USA/0.json"
+        },
+        {
+          "id": 0,
+          "pathname": "/data/outlines/fragments/USA/0.json"
+        }
+      ]
+    },
+    {
+      "case": "zoom4→6→9→4 with obsolete held Alaska, failed Pacific fallback and successful retry",
+      "failure": {
+        "resolved": false,
+        "message": "JourneySphere: 503 loading outline USA"
+      },
+      "requests": [
+        {
+          "id": 2,
+          "pathname": "/data/outlines/fragments/USA/2.json"
+        },
+        {
+          "id": 0,
+          "pathname": "/data/outlines/fragments/USA/0.json"
+        },
+        {
+          "id": 1,
+          "pathname": "/data/outlines/fragments/USA/1.json"
+        },
+        {
+          "id": 3,
+          "pathname": "/data/outlines/fragments/USA/3.json"
+        },
+        {
+          "id": 4,
+          "pathname": "/data/outlines/fragments/USA/4.json"
+        },
+        {
+          "id": 3,
+          "pathname": "/data/outlines/fragments/USA/3.json"
+        },
+        {
+          "id": 3,
+          "pathname": "/data/outlines/fragments/USA/3.json"
+        },
+        {
+          "id": 3,
+          "pathname": "/data/outlines/fragments/USA/3.json"
+        },
+        {
+          "id": 3,
+          "pathname": "/data/outlines/fragments/USA/3.json"
+        },
+        {
+          "id": 0,
+          "pathname": "/data/outlines/fragments/USA/0.json"
+        }
+      ],
+      "errors": [
+        {
+          "name": "Error",
+          "message": "JourneySphere: 503 loading outline USA"
+        },
+        {
+          "name": "Error",
+          "message": "JourneySphere: 503 loading outline USA"
+        },
+        {
+          "name": "Error",
+          "message": "JourneySphere: 503 loading outline USA"
+        }
+      ]
+    },
+    {
+      "case": "offscreen buffer stays deferred; live drag activates complete buffered coverage with held fallback",
+      "withoutBuffer": [],
+      "withBuffer": [
+        3
+      ],
+      "requests": [
+        {
+          "id": 3,
+          "pathname": "/data/outlines/fragments/USA/3.json"
+        }
+      ]
+    },
+    {
+      "case": "mobile DPR2 real touch, Pacific→Aleutian two-world-wrap pan",
+      "mobilePoint": {
+        "x": 235,
+        "y": 353,
+        "lat": 13.635310367863765,
+        "lng": 144.86022949218753,
+        "coarseUnderlay": false
+      },
+      "mobileWrapped": {
+        "x": 202,
+        "y": 473,
+        "lat": 52.01362701862776,
+        "lng": 899.6182250976564,
+        "coarseUnderlay": true
+      },
+      "screenshot": "mobile-wrapped.png"
+    },
+    {
+      "case": "animated fractional minZoom crossing both directions and wrapped8.5 detail-arrival redraw",
+      "below": {
+        "visible": 35,
+        "coarse": 21,
+        "fine": 0
+      },
+      "above": {
+        "visible": 20,
+        "coarse": 0,
+        "fine": 6
+      },
+      "fractionalPoint": {
+        "x": 85,
+        "y": 404,
+        "lat": 52.091330480865096,
+        "lng": 897.6006963007775,
+        "coarseUnderlay": true
+      }
+    },
+    {
+      "case": "unselected wrapped9.5 Guam land after held fragment arrival and redraw",
+      "worldPixel": [
+        [
+          248,
+          250,
+          251,
+          214
+        ]
+      ],
+      "requests": [
+        {
+          "id": 3,
+          "pathname": "/data/outlines/fragments/USA/3.json"
+        }
+      ]
+    },
+    {
+      "case": "resize exposes held fragment and repaints retained tiles to fallback",
+      "beforeResizeIds": [
+        4
+      ],
+      "afterResizeIds": [
+        0,
+        4
+      ],
+      "resizedTiles": {
+        "visible": 24,
+        "coarse": 20,
+        "fine": 0
+      },
+      "requests": [
+        {
+          "id": 4,
+          "pathname": "/data/outlines/fragments/USA/4.json"
+        },
+        {
+          "id": 0,
+          "pathname": "/data/outlines/fragments/USA/0.json"
+        }
+      ]
+    },
+    {
+      "case": "default Shanghai mobile avoids USA downloads for offscreen-only tile-buffer pieces",
+      "normal": [],
+      "buffered": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "requests": []
+    }
+  ],
+  "pageErrors": []
+}

@@ -100,6 +100,17 @@ after changing the map view when you need to wait for that exact view.
 The country closest to the view center loads first. Once it finishes, or after a
 two-second head start, the remaining visible outlines load with up to three
 concurrent requests. Cached focal detail lets them start immediately.
+Disconnected US coastlines load as complete regional groups, so a view of
+Pacific islands does not also download the mainland. Every polygon and its holes
+stay together with exact coordinates. The renderer uses refined land only when
+all groups covering the view and its tile margin are available; otherwise the
+complete overview stays visible. Panning can reuse already loaded groups.
+
+The remote embed ships a minified Leaflet engine and starts its default world
+download alongside the component modules. The original engine source, license,
+and deterministic build hashes are retained in `vendor/leaflet/`. Custom data
+maps fetch their own world data when connected. `npm run check:engine` verifies
+the production engine; `npm run build:engine` rebuilds it from the pinned source.
 
 Build a consumer deployment from this project:
 

@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { describeCatalog } from '../src/state.js';
 import { normalizePlaceName, placeBucket } from '../src/place-names.js';
+import { compactWorldPath } from './lib/compact-world-path.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dataRoot = path.join(root, 'data');
@@ -175,7 +176,7 @@ for (let value = 0; value < 4096; value++) {
 
 // Keep the atlas' canonical normalized world paths; they are seam-safe and
 // already omit duplicated longitude copies. The overview remains one request.
-const worldRecords = (await read('compiled/world.json')).features.map(feature => ({ ...feature, d: simplifyCompiledPath(feature.d) }));
+const worldRecords = (await read('compiled/world.json')).features.map(feature => ({ ...feature, d: compactWorldPath(simplifyCompiledPath(feature.d)) }));
 await write('world.json', { format: 1, version: identity.version, extent, fingerprint: identity.fingerprint, features: worldRecords });
 await write('meta.json', { format: 1, ...identity, extent, worldFile: 'world.json', namesPattern: 'names/{bucket}.json', regionsPattern: 'regions/{country}/{shard}.json', chunkSize: 4, nameBucketCount: 4096, source: manifest });
 console.log(`Embed data: ${byId.size} regions, ${4096} name shards, ${shardCount} region shards, ${worldRecords.length} world features.`);

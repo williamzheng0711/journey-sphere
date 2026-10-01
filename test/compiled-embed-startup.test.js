@@ -24,6 +24,22 @@ test('optional refinement tiers reject invalid zooms and asset paths before down
   assert.doesNotThrow(() => loadCompiledAtlas('/fixture/', { manifest: { ...manifest, outlines }, worldData: payload([]) }));
 });
 
+test('fragment manifests reject ambiguous identity, missing bounds and selectable country replacements', () => {
+  const bounds = [0, 0, 10, 10];
+  const fragment = { id: 0, file: '../outlines/fragments/AAA/0.json', bounds };
+  const entry = { file: '../outlines/AAA.json', bounds, parts: [bounds], regionIds: [], fragments: [fragment] };
+  const validate = entry => loadCompiledAtlas('/fixture/', {
+    manifest: { ...manifest, outlines: { minZoom: 4, countries: { AAA: entry } } }, worldData: payload([]),
+  });
+  assert.doesNotThrow(() => validate(entry));
+  for (const fragments of [null, [], [null], [{ ...fragment, id: -1 }], [{ ...fragment, id: 0.5 }],
+    [fragment, fragment], [{ ...fragment, file: '' }], [{ ...fragment, bounds: [0, 0, 1] }],
+    [{ ...fragment, bounds: [0, 0, 11, 10] }]]) {
+    assert.throws(() => validate({ ...entry, fragments }), /invalid detailed outline/);
+  }
+  assert.throws(() => validate({ ...entry, regionIds: ['AAA:ADM0:AAA'] }), /invalid detailed outline fragment/);
+});
+
 test('an overlapped overview promise is validated without another world request', async () => {
   const original = globalThis.fetch;
   globalThis.fetch = () => { throw new Error('duplicate world download'); };

@@ -83,6 +83,82 @@ function mapMock() {
   };
 }
 
+test('pan invalidates a country replacement scene before a deferred outline callback', async () => {
+  await withBrowserCanvas(async () => {
+    const coarse = record('world', null, 'USA');
+    const fine = { ...coarse, d: 'M0 0l1 0l0 1l-1 -1z' };
+    let position = 0;
+    const map = mapMock();
+    map.getPixelBounds = () => ({ min: { x: position, y: 0 }, max: { x: position + 256, y: 256 } });
+    const layer = createCompiledLayer(makeLeaflet(), {
+      world: { features: [coarse] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+      getOutline: () => position === 0 ? fine : null,
+    });
+    layer.onAdd(map);
+    const first = layer._sceneAt(0);
+    assert.equal(first.worldRecords[0], fine);
+    position = 1000;
+    const next = layer._sceneAt(0);
+    assert.notEqual(next, first);
+    assert.equal(next.worldRecords[0], coarse, 'new view uses original whole-country fallback');
+    assert.equal(first.worldRecords[0], fine);
+    assert.equal(layer._sceneAt(0), next, 'unchanged viewport reuses the scene');
+    layer.onRemove(map);
+  });
+});
+
+test('cached outline transitions repaint retained tiles while ordinary pans do not', async () => {
+  await withBrowserCanvas(async () => {
+    const originalFrame = globalThis.requestAnimationFrame;
+    const originalCancel = globalThis.cancelAnimationFrame;
+    const frames = [];
+    globalThis.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
+    globalThis.cancelAnimationFrame = () => {};
+    try {
+      let zoom = 4;
+      const map = mapMock(); map.getZoom = () => zoom;
+      const coarse = record('world', null, 'USA');
+      const fine = { ...coarse, d: 'M0 0l1 0l0 1l-1 -1z' };
+      const layer = createCompiledLayer(makeLeaflet(), {
+        world: { features: [coarse] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+        getOutline: (_code, level) => level >= 4 ? fine : null,
+      });
+      const emit = event => { const entry = map.handlers.get(event); entry.handler.call(entry.context); };
+      layer.onAdd(map); layer.createTile({ x: 0, y: 0, z: 4 });
+      emit('moveend'); emit('resize');
+      assert.equal(frames.length, 0, 'same outline identities retain painted tiles');
+      zoom = 3.5;
+      assert.equal(layer._sceneAt(zoom).worldRecords[0], coarse, 'hit testing may update the logical scene before repaint');
+      emit('zoomend'); emit('moveend');
+      assert.equal(frames.length, 1, 'fractional threshold transition schedules one repaint');
+      frames.shift()(); assert.equal(layer.redrawCount, 1);
+      layer.createTile({ x: 0, y: 0, z: 4 });
+      zoom = 4; emit('zoomend');
+      assert.equal(frames.length, 1, 'cached detail repaints without another fetch callback');
+      frames.shift()(); assert.equal(layer.redrawCount, 2);
+      layer.onRemove(map);
+      for (const event of ['moveend', 'zoomend', 'resize']) assert.equal(map.handlers.has(event), false);
+    } finally {
+      globalThis.requestAnimationFrame = originalFrame; globalThis.cancelAnimationFrame = originalCancel;
+    }
+  });
+});
+
+test('redraw delegates fractional zoom to normal rounded view setup and resets the wrapping grid', () => {
+  const layer = createCompiledLayer(makeLeaflet(), {
+    world: { features: [] }, extent: 2 ** 24, getCountries: () => [], getVisited: () => [],
+  });
+  const center = { lat: 13.45, lng: 864.75 };
+  layer._map = { getCenter: () => center, getZoom: () => 9.5 };
+  let removed = false; let setup;
+  layer._tileZoom = 10;
+  layer._removeAllTiles = () => { removed = true; };
+  layer._setView = (position, zoom) => { setup = { position, zoom, oldTileZoom: layer._tileZoom }; };
+  assert.equal(layer.redraw(), layer);
+  assert.equal(removed, true);
+  assert.deepEqual(setup, { position: center, zoom: 9.5, oldTileZoom: undefined });
+});
+
 test('compiled layer draws world, active outlines, selected regions, and selected siblings', async () => {
   await withBrowserCanvas(async canvases => {
     const L = makeLeaflet();

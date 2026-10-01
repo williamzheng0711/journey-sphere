@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { resolve, dirname, relative } from 'node:path';
@@ -34,7 +34,19 @@ export async function exportStatic({ recordPath, outputDir, fallbackDataUrl }) {
     sourceHashes[file] = digest(bytes);
     return bytes;
   }
+  async function includeTree(directory) {
+    const entries = (await readdir(resolve(sourceRoot, directory), { withFileTypes: true }))
+      .sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0);
+    for (const entry of entries) {
+      const file = `${directory}/${entry.name}`;
+      if (entry.isDirectory()) await includeTree(file);
+      else if (entry.isFile()) await include(file);
+    }
+  }
   for (const file of sourceFiles) await include(file);
+  // Keep the production engine, inspectable upstream source, license and build
+  // hashes together. New vendor assets automatically join exported deployments.
+  await includeTree('vendor');
   await include('data/catalog.json');
   await include(`data/compiled/${manifest.worldFile}`);
   for (const code of codes) {
@@ -68,6 +80,10 @@ export async function exportStatic({ recordPath, outputDir, fallbackDataUrl }) {
   if (manifest.outlines) {
     await include('data/outlines/manifest.json');
     await include('data/outlines/sources.json');
+    if (Object.values(manifest.outlines.countries).some(entry => entry.fragments)) {
+      await include('data/outlines/fragments/manifest.json');
+      await include('data/outlines/fragments/provenance.json');
+    }
     if (manifest.outlines.detailZoom !== undefined) {
       await include('data/outlines/overview/manifest.json');
       await include('data/outlines/overview/provenance.json');
@@ -76,7 +92,7 @@ export async function exportStatic({ recordPath, outputDir, fallbackDataUrl }) {
       // Keep the generated tier corpus together with its provenance, including
       // exact fallback records whose runtime URL reuses the full outline.
       if (manifest.outlines.detailZoom !== undefined) await include(`data/outlines/overview/${code}.json`);
-      for (const outlineFile of new Set([entry.file, entry.overviewFile].filter(Boolean))) {
+      for (const outlineFile of new Set([entry.file, entry.overviewFile, ...(entry.fragments || []).map(fragment => fragment.file)].filter(Boolean))) {
         const file = relative(sourceRoot, resolve(sourceRoot, 'data/compiled/', outlineFile));
         if (!file.startsWith('data/outlines/')) throw new Error('Outline export paths must stay inside data/outlines/.');
         await include(file);

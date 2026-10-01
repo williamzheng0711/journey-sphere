@@ -102,9 +102,10 @@ function simplifyWorld(feature) {
 // Normalize seams once, keeping only the center copy. The browser reuses its
 // native path at wrapped tile offsets, instead of cloning the coordinates.
 const normalize = features => featuresNearLongitudeCopies(features, 0).filter((_, index) => index % 3 === 0);
-const [catalog, palette, world, outlines, outlineOverview] = await Promise.all([
+const [catalog, palette, world, outlines, outlineOverview, outlineFragments] = await Promise.all([
   read('catalog.json'), read('palette.json'), read('world.geojson'),
   readOptional('outlines/manifest.json'), readOptional('outlines/overview/manifest.json'),
+  readOptional('outlines/fragments/manifest.json'),
 ]);
 const identity = describeCatalog(catalog);
 const indexById = new Map(catalog.regionIds.map((id, index) => [id, index]));
@@ -143,6 +144,7 @@ try {
   if (seen.size !== identity.regionCount) throw new Error('Source shards do not cover the complete catalog.');
   let outlineMetadata;
   if (outlineOverview && !outlines) throw new Error('Overview outlines require a matching detailed outline manifest.');
+  if (outlineFragments && !outlines) throw new Error('Outline fragments require a matching detailed outline manifest.');
   if (outlines) {
     if (outlines.format !== 1 || outlines.version !== identity.version || outlines.extent !== extent ||
         JSON.stringify(outlines.fingerprint) !== JSON.stringify(identity.fingerprint) || typeof outlines.countries !== 'object') {
@@ -180,6 +182,42 @@ try {
         countries[code] = { ...entry, overviewFile: sourceBytes.equals(overviewBytes) ? entry.file : file };
       }
       outlineMetadata = { ...outlines, minZoom: outlineOverview.minZoom, detailZoom: outlineOverview.detailZoom, countries };
+    }
+    if (outlineFragments) {
+      if (outlineFragments.format !== 1 || outlineFragments.version !== identity.version || outlineFragments.extent !== extent ||
+          JSON.stringify(outlineFragments.fingerprint) !== JSON.stringify(identity.fingerprint) ||
+          !outlineFragments.countries || typeof outlineFragments.countries !== 'object') {
+        throw new Error('Outline fragment manifest identity does not match the compiled atlas.');
+      }
+      const countries = { ...outlineMetadata.countries };
+      for (const [code, group] of Object.entries(outlineFragments.countries)) {
+        const original = outlines.countries[code];
+        if (!original || original.regionIds?.length || !Array.isArray(group.fragments) || !group.fragments.length ||
+            group.fragments.length !== original.parts?.length) throw new Error(`Invalid outline fragment group: ${code}`);
+        const source = await readFile(path.join(dataDir, 'outlines', `${code}.json`));
+        if (createHash('sha256').update(source).digest('hex') !== group.sourceSha256) {
+          throw new Error(`Outline fragments are stale; rebuild them from the current detailed atlas: ${code}`);
+        }
+        const fragments = [];
+        for (const [index, fragment] of group.fragments.entries()) {
+          if (fragment.id !== index || fragment.file !== `../outlines/fragments/${code}/${index}.json` ||
+              JSON.stringify(fragment.bounds) !== JSON.stringify(original.parts[index])) {
+            throw new Error(`Invalid outline fragment index: ${code}`);
+          }
+          const bytes = await readFile(path.join(dataDir, 'outlines', 'fragments', code, `${index}.json`));
+          const payload = JSON.parse(bytes);
+          if (createHash('sha256').update(bytes).digest('hex') !== fragment.sha256 || payload.fragment !== index ||
+              payload.version !== identity.version || payload.extent !== extent || payload.format !== 1 ||
+              JSON.stringify(payload.fingerprint) !== JSON.stringify(identity.fingerprint) ||
+              payload.features?.length !== 1 || payload.features[0].countryCode !== code ||
+              JSON.stringify(payload.features[0].bounds) !== JSON.stringify(fragment.bounds)) {
+            throw new Error(`Outline fragment data does not match the detailed atlas: ${code}/${index}`);
+          }
+          fragments.push({ id: fragment.id, file: fragment.file, bounds: fragment.bounds });
+        }
+        countries[code] = { ...countries[code], fragments };
+      }
+      outlineMetadata = { ...outlineMetadata, countries };
     }
   }
   const manifest = { format: 1, ...identity, extent, worldFile: 'world.json', catalogFile: '../catalog.json', countries,

@@ -233,7 +233,7 @@ async function checkSeamStrokes(page) {
 }
 async function globalScenario(scenario) {
   const page = await newPage(); const heldRoutes = []; let holdOutlines = true;
-  await page.route('**/data/outlines/*.json', route => { if (holdOutlines) heldRoutes.push(route); else return route.continue(); });
+  await page.route('**/data/outlines/**', route => { if (holdOutlines) heldRoutes.push(route); else return route.continue(); });
   await page.goto(`${origin}/fixture.html?scenario=${scenario.key}`, {waitUntil:'domcontentloaded'});
   await waitFor(page, () => window.journeySphere && window.__layer && window.__firstTilePaintAt !== null && window.__outlineRequests.length > 0);
   await frames(page);
@@ -251,7 +251,7 @@ async function globalScenario(scenario) {
   }
   holdOutlines = false;
   await Promise.all(heldRoutes.map(route=>route.continue()));
-  await page.unroute('**/data/outlines/*.json');
+  await page.unroute('**/data/outlines/**');
   const loaded = await page.evaluate(async () => (await window.journeySphere.loadOutlineDetails()).map(record=>record.countryCode));
   assert.ok(loaded.includes(scenario.code), `${scenario.key}: this viewport receives its country's fine outline`);
   await waitFor(page, () => {
@@ -280,7 +280,8 @@ async function globalScenario(scenario) {
   await page.mouse.move(10,10);await frames(page);
   if(scenario.screenshot){const file=`${scenario.key}-fine.png`;globalScreenshots.push(file);await page.screenshot({path:path.join(output,file)});}
   if(scenario.key==='aleutian-dateline')assert.ok(after.bounds.west<180&&after.bounds.east>180,'Aleutian test viewport genuinely straddles the dateline');
-  const requestedCodes=[...new Set(after.requests.map(request=>new URL(request.url).pathname.split('/').pop().replace('.json','')))];
+  const requestedCodes=[...new Set(after.requests.map(request=>new URL(request.url).pathname
+    .match(/\/outlines\/(?:overview\/|fragments\/)?([A-Z]{3})(?:\/|\.json)/)?.[1]).filter(Boolean))];
   if(scenario.code!=='USA')assert.ok(!requestedCodes.includes('USA'),`${scenario.key}: disconnected USA bounds do not trigger an unrelated fetch`);
   if(scenario.key==='germany-france-border')assert.ok(!requestedCodes.includes('RUS'),'European border view does not fetch distant Russia');
   if(scenario.key==='germany-france-border'){
@@ -346,8 +347,9 @@ try {
     hkg: window.__layer._sceneAt(window.journeySphere.map.getZoom()).worldRecords.find(record => record.countryCode === 'HKG').d,
   }));
   assert.ok(overviewState.requests.length > 0, 'cold zoom-4 overview refines visible countries');
-  const tierAssets = new Set(Object.values(manifest.outlines.countries).map(entry =>
-    new URL(entry.overviewFile, `${origin}/data/compiled/`).href));
+  const tierAssets = new Set(Object.values(manifest.outlines.countries).flatMap(entry =>
+    (entry.fragments ? entry.fragments.map(fragment => fragment.file) : [entry.overviewFile])
+      .map(file => new URL(file, `${origin}/data/compiled/`).href)));
   assert.ok(overviewState.requests.every(request => tierAssets.has(request.url)),
     'cold zoom-4 overview requests only the declared compact tier or its exact safe fallbacks');
   assert.ok(overviewState.requests.every(request => request.startTime >= overviewState.firstPaint),

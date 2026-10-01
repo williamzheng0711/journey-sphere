@@ -139,6 +139,27 @@ export function createCompiledLayer(L, options) {
   }
 
   const Layer = L.GridLayer.extend({
+    redraw() {
+      this._compiledPaintedWorld = null;
+      this._compiledMixedOutlines = false;
+      if (!this._map || typeof this._setView !== 'function' || typeof this._removeAllTiles !== 'function') {
+        return L.GridLayer.prototype.redraw.call(this);
+      }
+      // Leaflet's inherited redraw uses the fractional map zoom as tile zoom
+      // without resetting the integer wrapping grid. Let its normal view setup
+      // round the level and rebuild that grid, including repeated world copies.
+      this._removeAllTiles();
+      this._tileZoom = undefined;
+      this._setView(this._map.getCenter(), this._map.getZoom());
+      return this;
+    },
+    _refreshCompiledView() {
+      if (!this._compiledMap || !this._compiledPaintedWorld) return;
+      const state = this._sceneAt(this._compiledMap.getZoom());
+      const previous = this._compiledPaintedWorld;
+      if (this._compiledMixedOutlines || state.worldRecords.length !== previous.length ||
+          state.worldRecords.some((record, index) => record !== previous[index])) this.requestRefresh();
+    },
     _cancelCompiledRefresh() {
       const handle = this._compiledRefreshFrame;
       const cancel = this._compiledRefreshCancel;
@@ -169,7 +190,14 @@ export function createCompiledLayer(L, options) {
       return this;
     },
     _sceneAt(zoom) {
-      if (!this._compiledScene || this._compiledScene.zoom !== zoom) this._compiledScene = scene(zoom);
+      // A partial country outline covers whole polygons near the live viewport.
+      // Pans and resize can expose a missing part before moveend or any network
+      // callback, so never reuse the old viewport's replacement scene there.
+      const bounds = this._compiledMap?.getPixelBounds?.();
+      const viewKey = bounds ? [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y].join(',') : null;
+      if (!this._compiledScene || this._compiledScene.zoom !== zoom || this._compiledScene.viewKey !== viewKey) {
+        this._compiledScene = { ...scene(zoom), viewKey };
+      }
       return this._compiledScene;
     },
     createTile(coords) {
@@ -186,6 +214,8 @@ export function createCompiledLayer(L, options) {
         const context = tileContext(tile);
         const zoom = this._compiledMap?.getZoom() ?? this._map?.getZoom() ?? coords.z;
         const state = this._sceneAt(zoom);
+        if (!this._compiledPaintedWorld) this._compiledPaintedWorld = state.worldRecords;
+        else if (state.worldRecords.some((record, index) => record !== this._compiledPaintedWorld[index])) this._compiledMixedOutlines = true;
         const countryRecords = state.visibleRegions;
         const adminRecords = state.adminRecords;
         const activeWorld = feature => state.activeCountries.has(feature.countryCode);
@@ -239,6 +269,9 @@ export function createCompiledLayer(L, options) {
       map.on('mousemove', this._compiledHover, this);
       map.on('mouseout', this._clearCompiledHover, this);
       map.on('movestart', this._clearCompiledHover, this);
+      map.on('moveend', this._refreshCompiledView, this);
+      map.on('zoomend', this._refreshCompiledView, this);
+      map.on('resize', this._refreshCompiledView, this);
       if (interactive) map.on('click', this._compiledClick, this);
       this._compiledTooltip = L.tooltip?.({ sticky: true });
     },
@@ -248,9 +281,14 @@ export function createCompiledLayer(L, options) {
       map.off('mousemove', this._compiledHover, this);
       map.off('mouseout', this._clearCompiledHover, this);
       map.off('movestart', this._clearCompiledHover, this);
+      map.off('moveend', this._refreshCompiledView, this);
+      map.off('zoomend', this._refreshCompiledView, this);
+      map.off('resize', this._refreshCompiledView, this);
       this._clearCompiledHover();
       this._compiledMap = null;
       this._compiledScene = null;
+      this._compiledPaintedWorld = null;
+      this._compiledMixedOutlines = false;
       this._compiledHitCanvas = null;
       this._compiledHitContext = null;
       this._compiledTooltip = null;

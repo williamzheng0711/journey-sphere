@@ -424,7 +424,15 @@ try {
     }
     const refinementTiming = await refine(current.page, scenario);
     const fine = await scene(current.page, scenario.code, scenario.id);
-    if (baselineOutlineConfig) assert.ok(fine.world === baselineZoom.world, `${scenario.key}: exact detailed land matches the settled baseline`);
+    if (baselineOutlineConfig && outlineConfig.countries[scenario.code]?.fragments) {
+      const rings = value => value.match(/M[^M]+/g).map(ring => ring.trim());
+      const baselineRings = new Map();
+      for (const ring of rings(baselineZoom.world)) baselineRings.set(ring, (baselineRings.get(ring) || 0) + 1);
+      for (const ring of rings(fine.world)) {
+        assert.ok(baselineRings.get(ring) > 0, `${scenario.key}: every loaded polygon and hole matches the exact baseline`);
+        baselineRings.set(ring, baselineRings.get(ring) - 1);
+      }
+    } else if (baselineOutlineConfig) assert.ok(fine.world === baselineZoom.world, `${scenario.key}: exact detailed land matches the settled baseline`);
     else assert.notEqual(fine.world, baselineZoom.world, `${scenario.key}: detailed land replaces simplified embed world`);
     assert.deepEqual(fine.visited, coarse.visited, `${scenario.key}: refinement preserves visited IDs`);
     assert.equal(fine.codeword, coarse.codeword, `${scenario.key}: refinement preserves visit codeword`);
