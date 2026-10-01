@@ -51,7 +51,8 @@
     "test:fragments": "node scripts/test-outline-fragments.mjs",
     "build:engine": "node scripts/build-leaflet-engine.mjs",
     "check:engine": "node scripts/build-leaflet-engine.mjs --check",
-    "test:embed:startup": "node scripts/test-embed-startup.mjs"
+    "test:embed:startup": "node scripts/test-embed-startup.mjs",
+    "test:embed:updates": "node scripts/test-embed-updates.mjs"
   },
   "engines": {
     "node": ">=20"

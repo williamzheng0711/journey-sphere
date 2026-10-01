@@ -114,6 +114,263 @@ test('factory gives codeword precedence over visited IDs and reset emits callbac
   });
 });
 
+test('setView preserves the map and visits while updating the reset view', async () => {
+  await withCompiledDom(async ({ leaflet }) => {
+    await withFactoryFetch({ AAA: payload([feature('AAA:r1', 'AAA', 0)]), BBB: payload([feature('BBB:r1', 'BBB', 1)]) }, async calls => {
+      const sphere = await createCompiledJourneySphere(createContainer(), {
+        leaflet, dataUrl: '/fixture/', manifest, visited: ['AAA:r1'], center: [31, 121], zoom: 4,
+      });
+      await sphere.setVisited(['BBB:r1']);
+      const codeword = sphere.getCodeword();
+      const requestCount = calls.length;
+      const center = [22, 720];
+      assert.equal(sphere.setView(center, 7), sphere.map);
+      center[0] = 0;
+      assert.deepEqual(sphere.getVisited(), ['BBB:r1']);
+      assert.equal(sphere.getCodeword(), codeword);
+      assert.deepEqual(sphere.map.getCenter(), { lat: 22, lng: 720 });
+      assert.equal(sphere.map.getZoom(), 7);
+      assert.equal(leaflet.maps.length, 1);
+      assert.equal(sphere.map.removed, undefined);
+      assert.equal(calls.length, requestCount, 'changing view does not reload administrative geometry');
+      await sphere.setVisited([]);
+      sphere.map.setView([0, 0], 2);
+      await sphere.reset();
+      assert.deepEqual(sphere.getVisited(), ['AAA:r1']);
+      assert.deepEqual(sphere.map.getCenter(), { lat: 22, lng: 720 });
+      assert.equal(sphere.map.getZoom(), 7);
+      sphere.destroy();
+      assert.throws(() => sphere.setView([0, 0], 4), /destroyed/);
+    });
+  });
+});
+
+test('invalid views and failed Leaflet view changes preserve the reset target', async () => {
+  await withCompiledDom(async ({ leaflet }) => {
+    await withFactoryFetch({ AAA: payload([feature('AAA:r1', 'AAA', 0)]) }, async () => {
+      const sphere = await createCompiledJourneySphere(createContainer(), {
+        leaflet, dataUrl: '/fixture/', manifest, visited: ['AAA:r1'], center: [10, 20], zoom: 4,
+      });
+      sphere.setView([-90, 1080], 5);
+      for (const [center, zoom] of [[null, 4], [[], 4], [[0], 4], [[0, 0, 0], 4], [Array(2), 4], [[NaN, 0], 4],
+        [[0, Infinity], 4], [['22', 120], 4], [[91, 0], 4], [[-91, 0], 4], [[0, 0], NaN],
+        [[0, 0], Infinity], [[0, 0], '4'], [[0, 0], undefined]]) {
+        assert.throws(() => sphere.setView(center, zoom), /center|latitude|zoom/);
+      }
+      assert.deepEqual(sphere.map.getCenter(), { lat: -90, lng: 1080 });
+      assert.equal(sphere.map.getZoom(), 5);
+      const setView = sphere.map.setView;
+      sphere.map.setView = () => { throw new Error('view unavailable'); };
+      assert.throws(() => sphere.setView([30, 40], 6), /view unavailable/);
+      sphere.map.setView = setView;
+      await sphere.setVisited([]);
+      sphere.map.setView([0, 0], 2);
+      await sphere.reset();
+      assert.deepEqual(sphere.getVisited(), ['AAA:r1']);
+      assert.deepEqual(sphere.map.getCenter(), { lat: -90, lng: 1080 });
+      assert.equal(sphere.map.getZoom(), 5);
+      sphere.destroy();
+    });
+  });
+});
+
+function subsetFixture() {
+  const ids = ['AAA:r1', 'AAA:r2', 'BBB:r1'];
+  const identity = describeCatalog({ version: 'fixture', regionIds: ids });
+  const localManifest = { ...manifest, regionCount: ids.length, fingerprint: identity.fingerprint, countries: {
+    AAA: { ...manifest.countries.AAA, count: 2 }, BBB: { ...manifest.countries.BBB, start: 2 },
+  } };
+  const envelope = features => ({ ...payload(features), fingerprint: identity.fingerprint });
+  return { localManifest, envelope,
+    a1: feature('AAA:r1', 'AAA', 0), a2: feature('AAA:r2', 'AAA', 1), b1: feature('BBB:r1', 'BBB', 2) };
+}
+
+test('prepared selection replacement merges exact subsets without rebuilding or fetching, updates labels and reset', async () => {
+  await withCompiledDom(async ({ leaflet }) => {
+    const { localManifest, envelope, a1, a2 } = subsetFixture();
+    const changes = [];
+    await withFactoryFetch({}, async calls => {
+      const sphere = await createCompiledJourneySphere(createContainer(), {
+        leaflet, dataUrl: '/fixture/', manifest: localManifest, worldData: envelope([]),
+        visited: [a1.id], initialCountries: { AAA: envelope([a1]) }, labels: { [a1.id]: 'Original' },
+        backgroundDetails: false, center: [10, 20], zoom: 4, onChange: value => changes.push(value),
+      });
+      const layer = sphere.map.layers[0];
+      const requestCount = calls.length;
+      const labels = { [a2.id]: 'Updated place' };
+      const center = [30, 40];
+      sphere.replaceSelection({ visited: [a2.id], initialCountries: { AAA: envelope([a1, a2]) }, labels, center, zoom: 6 });
+      labels[a2.id] = 'Caller mutation'; center[0] = 0;
+      assert.deepEqual(sphere.getVisited(), [a2.id]);
+      assert.deepEqual(layer._sceneAt(6).activeRecords.map(record => record.id), [a1.id, a2.id]);
+      layer._hitRecord = () => a2;
+      layer._compiledHover({ latlng: [0, 0] });
+      assert.equal(layer._compiledLabel.textContent, 'Updated place');
+      assert.equal(calls.length, requestCount);
+      assert.equal(leaflet.maps.length, 1);
+      assert.equal(sphere.map.removed, undefined);
+      assert.equal(changes.length, 1);
+      await sphere.setVisited([a1.id]);
+      sphere.map.setView([0, 0], 2);
+      await sphere.reset();
+      assert.deepEqual(sphere.getVisited(), [a2.id]);
+      assert.deepEqual(sphere.map.getCenter(), { lat: 30, lng: 40 });
+      assert.equal(sphere.map.getZoom(), 6);
+      assert.equal(calls.length, requestCount, 'merged subset also supports later setVisited and reset');
+      sphere.destroy();
+      assert.throws(() => sphere.replaceSelection({ visited: [] }), /destroyed/);
+    });
+  });
+});
+
+test('invalid prepared replacements preserve selection, labels, view, reset and callbacks', async () => {
+  await withCompiledDom(async ({ leaflet }) => {
+    const { localManifest, envelope, a1, a2 } = subsetFixture();
+    const changes = [];
+    await withFactoryFetch({}, async () => {
+      const sphere = await createCompiledJourneySphere(createContainer(), {
+        leaflet, dataUrl: '/fixture/', manifest: localManifest, worldData: envelope([]),
+        visited: [a1.id], initialCountries: { AAA: envelope([a1]) }, labels: { [a1.id]: 'Kept label' },
+        backgroundDetails: false, center: [10, 20], zoom: 4, onChange: value => changes.push(value),
+      });
+      const candidate = { visited: [a2.id], initialCountries: { AAA: envelope([a2]) },
+        labels: { [a1.id]: 'Rejected label' }, center: [30, 40], zoom: 6 };
+      const invalid = [
+        { ...candidate, visited: [a2.id, a2.id] },
+        { ...candidate, visited: ['AAA:missing'] },
+        { ...candidate, initialCountries: null },
+        { ...candidate, initialCountries: { AAA: { ...envelope([a2]), version: 'other' } } },
+        { ...candidate, initialCountries: { AAA: envelope([{ ...a2, d: 'invalid' }]) } },
+        { ...candidate, initialCountries: { AAA: envelope([{ ...a2, index: a1.index }]) } },
+        { ...candidate, initialCountries: { AAA: envelope([a2, { ...a1, d: 'M0 0l2 0l0 2z' }]) } },
+        { ...candidate, initialCountries: { AAA: { ...envelope([a2]), admin1: [{ d: a1.d, bounds: a1.bounds }] } } },
+        { ...candidate, labels: null }, { ...candidate, center: [91, 0] }, { ...candidate, zoom: NaN },
+      ];
+      const codeword = sphere.getCodeword();
+      const layer = sphere.map.layers[0];
+      for (const snapshot of invalid) {
+        assert.throws(() => sphere.replaceSelection(snapshot));
+        assert.deepEqual(sphere.getVisited(), [a1.id]);
+        assert.equal(sphere.getCodeword(), codeword);
+        assert.deepEqual(sphere.map.getCenter(), { lat: 10, lng: 20 });
+        assert.equal(sphere.map.getZoom(), 4);
+        assert.deepEqual(layer._sceneAt(4).activeRecords.map(record => record.id), [a1.id]);
+        assert.equal(changes.length, 0);
+      }
+      layer._hitRecord = () => a1;
+      layer._compiledHover({ latlng: [0, 0] });
+      assert.equal(layer._compiledLabel.textContent, 'Kept label');
+      await sphere.setVisited([]);
+      sphere.map.setView([0, 0], 2);
+      await sphere.reset();
+      assert.deepEqual(sphere.getVisited(), [a1.id]);
+      assert.deepEqual(sphere.map.getCenter(), { lat: 10, lng: 20 });
+      sphere.destroy();
+    });
+  });
+});
+
+test('prepared replacements reject conflicts with already loaded complete countries', async () => {
+  await withCompiledDom(async ({ leaflet }) => {
+    const { localManifest, envelope, a1, a2 } = subsetFixture();
+    await withFactoryFetch({ AAA: envelope([a1, a2]) }, async () => {
+      const sphere = await createCompiledJourneySphere(createContainer(), {
+        leaflet, dataUrl: '/fixture/', manifest: localManifest, worldData: envelope([]),
+        visited: [a1.id], backgroundDetails: false,
+      });
+      assert.throws(() => sphere.replaceSelection({ visited: [a2.id],
+        initialCountries: { AAA: envelope([{ ...a2, d: 'M0 0l2 0l0 2z' }]) } }), /conflicting compiled geometry/);
+      assert.throws(() => sphere.replaceSelection({ visited: [a2.id], initialCountries: {
+        AAA: { ...envelope([a2]), admin1: [{ id: 'AAA:parent', countryCode: 'AAA', d: a2.d, bounds: a2.bounds }] },
+      } }), /conflicting compiled geometry/);
+      assert.deepEqual(sphere.getVisited(), [a1.id]);
+      sphere.replaceSelection({ visited: [a2.id], initialCountries: { AAA: envelope([a2]) } });
+      assert.deepEqual(sphere.getVisited(), [a2.id]);
+      sphere.destroy();
+    });
+  });
+});
+
+test('prepared replacement supersedes an older held setVisited request', async () => {
+  await withCompiledDom(async ({ leaflet }) => {
+    const { localManifest, envelope, a1, a2, b1 } = subsetFixture();
+    const held = deferred();
+    const changes = [];
+    await withFactoryFetch({ BBB: held.promise }, async () => {
+      const sphere = await createCompiledJourneySphere(createContainer(), {
+        leaflet, dataUrl: '/fixture/', manifest: localManifest, worldData: envelope([]),
+        visited: [a1.id], initialCountries: { AAA: envelope([a1]) }, backgroundDetails: false,
+        onChange: value => changes.push(value),
+      });
+      const old = sphere.setVisited([b1.id]);
+      sphere.replaceSelection({ visited: [a2.id], initialCountries: { AAA: envelope([a2]) } });
+      held.resolve(envelope([b1]));
+      await old;
+      assert.deepEqual(sphere.getVisited(), [a2.id]);
+      assert.equal(changes.length, 1);
+      await sphere.setVisited([a1.id]);
+      await sphere.reset();
+      assert.deepEqual(sphere.getVisited(), [a2.id]);
+      sphere.destroy();
+    });
+  });
+});
+
+test('explicit details follow replacement selection and reuse completed country data', async () => {
+  await withCompiledDom(async ({ leaflet }) => {
+    const { localManifest, envelope, a1, a2, b1 } = subsetFixture();
+    await withFactoryFetch({ AAA: envelope([a1, a2]), BBB: envelope([b1]) }, async calls => {
+      const sphere = await createCompiledJourneySphere(createContainer(), {
+        leaflet, dataUrl: '/fixture/', manifest: localManifest, worldData: envelope([]),
+        visited: [a1.id], initialCountries: { AAA: envelope([a1]) }, backgroundDetails: false,
+      });
+      await sphere.loadDetails();
+      assert.equal(calls.filter(call => call.url.endsWith('/AAA.json')).length, 1);
+      sphere.replaceSelection({ visited: [b1.id], initialCountries: { BBB: envelope([b1]) } });
+      const bbb = sphere.loadDetails();
+      assert.equal(sphere.loadDetails(), bbb, 'current selection shares one explicit completion promise');
+      await bbb;
+      assert.equal(calls.filter(call => call.url.endsWith('/BBB.json')).length, 1,
+        'completed details for the old selection cannot prevent loading the new country');
+      await sphere.setVisited([a1.id]);
+      await sphere.loadDetails();
+      assert.equal(calls.length, 2, 'returning to a previously completed country does not download it again');
+      assert.deepEqual(sphere.map.layers[0]._sceneAt(4).activeRecords.map(record => record.id), [a1.id, a2.id]);
+      sphere.destroy();
+    });
+  });
+});
+
+test('obsolete explicit-detail failure cannot clear a newer selection request and can retry', async () => {
+  await withCompiledDom(async ({ leaflet }) => {
+    const { localManifest, envelope, a1, a2, b1 } = subsetFixture();
+    const heldA = deferred();
+    const heldB = deferred();
+    let aCalls = 0;
+    await withFactoryFetch({ AAA: () => aCalls++ === 0 ? heldA.promise : envelope([a1, a2]), BBB: heldB.promise }, async calls => {
+      const sphere = await createCompiledJourneySphere(createContainer(), {
+        leaflet, dataUrl: '/fixture/', manifest: localManifest, worldData: envelope([]),
+        visited: [a1.id], initialCountries: { AAA: envelope([a1]) }, backgroundDetails: false,
+      });
+      const old = sphere.loadDetails();
+      sphere.replaceSelection({ visited: [b1.id], initialCountries: { BBB: envelope([b1]) } });
+      const current = sphere.loadDetails();
+      heldA.reject(new Error('old country unavailable'));
+      await assert.rejects(old, /old country unavailable/);
+      assert.equal(sphere.loadDetails(), current, 'old rejection cannot erase the current country completion promise');
+      assert.deepEqual(sphere.getVisited(), [b1.id]);
+      heldB.resolve(envelope([b1]));
+      await current;
+      sphere.replaceSelection({ visited: [a1.id] });
+      await sphere.loadDetails();
+      assert.equal(calls.filter(call => call.url.endsWith('/AAA.json')).length, 2);
+      assert.equal(calls.filter(call => call.url.endsWith('/BBB.json')).length, 1);
+      assert.deepEqual(sphere.map.layers[0]._sceneAt(4).activeRecords.map(record => record.id), [a1.id, a2.id]);
+      sphere.destroy();
+    });
+  });
+});
+
 test('failed selection preserves committed state and a newer selection wins a slower request', async () => {
   await withCompiledDom(async ({ leaflet }) => {
     const failedRequest = deferred();
@@ -240,8 +497,8 @@ function makeMap() {
     addLayer(layer) { layer.onAdd?.(map); return map; },
     removeLayer(layer) { layer.onRemove?.(map); return map; },
     remove() { for (const layer of [...map.layers || []]) layer.onRemove?.(map); map.removed = true; },
-    setView(_center, zoom) { map.zoom = zoom; return map; }, getZoom: () => map.zoom ?? 4,
-    invalidateSize() {}, setMinZoom() {}, getCenter: () => ({ lat: 0, lng: 0 }),
+    setView(center, zoom) { map.center = [...center]; map.zoom = zoom; return map; }, getZoom: () => map.zoom ?? 4,
+    invalidateSize() {}, setMinZoom() {}, getCenter: () => ({ lat: map.center?.[0] ?? 0, lng: map.center?.[1] ?? 0 }),
     getPixelWorldBounds: () => ({ min: { y: 0 }, max: { y: 256 } }), getSize: () => ({ y: 256 }),
     project: () => ({ x: 128, y: 128 }), unproject: value => value,
   };
@@ -336,6 +593,6 @@ async function withFactoryFetch(files, callback) {
       if (file) return new Response(JSON.stringify(file));
       return new Response('missing', { status: 404 });
     };
-    try { return await callback(); } finally { globalThis.fetch = oldFetch; }
+    try { return await callback(calls); } finally { globalThis.fetch = oldFetch; }
   });
 }

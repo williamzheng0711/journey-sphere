@@ -89,6 +89,17 @@ promise can be retried after failure. `detailsReady` tracks automatic loading.
 
 The remote embed uses these options automatically. It keeps full-country shards
 out of first display and panning, while country outline refinement remains active.
+Live place updates retain the working map until new data has been validated;
+view-only updates preserve interactive edits. See [the embed guide](docs/embed.md)
+for update, retry and reset behavior.
+
+Compiled maps also provide `journey.setView(center, zoom)` to update their view
+and reset target without changing visits. For preloaded partial geometry, call
+`journey.replaceSelection({ visited, initialCountries, labels, center, zoom })`.
+It validates and merges the new chunks before applying selection, labels and
+reset state together, with no country downloads. Failed validation preserves the
+previous state. Geometry must match the same atlas identity and any cached
+records. `setVisited()` and `setCodeword()` retain their existing behavior.
 
 Outline refinement is independent of full administrative-region loading.
 `journey.outlineDetailsReady` exposes the latest scheduled viewport request;

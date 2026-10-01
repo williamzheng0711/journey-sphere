@@ -38,10 +38,33 @@ then run `npm run build:embed` in this repository.
 
 `element.ready` resolves when the initial map is usable; `element.journey`
 exposes the map API. The default view fits the supplied places. Optional `center`
-and `zoom` attributes override it. Set `--journey-sphere-height: 480px` to change
-height. `element.reset()` restores visits and the original view. Listen for
-`journey-ready` and `journey-error` events. Removal cancels outstanding requests
-and destroys the map; reconnecting initializes it again.
+and `zoom` attributes override the corresponding part of that view. Set
+`--journey-sphere-height: 480px` to change height. Listen for `journey-ready` and
+`journey-error` events. Removal cancels outstanding requests and destroys the map;
+reconnecting initializes it again.
+
+Update `element.places` at any time and await the new `element.ready`. Place lookup
+and selected-region downloads happen while the current map remains usable. A
+successful update reuses the map, updates its labels and selection, and fits the
+new places using any explicit view attributes. It does not reload the overview or
+download full administrative country shards. An invalid name or failed download
+rejects `ready`, emits `journey-error`, and preserves the working map. Assign the
+same places again to retry a failed update. Changing `data-base-url` prepares a
+replacement map before removing the working one.
+
+Changing `center` moves the existing map and keeps its current zoom; changing
+`zoom` keeps its current center. Both preserve interactive visit changes and
+require no place lookup or selected-region download. Removing either attribute
+restores that part of the automatic view. If a place update is pending, it uses
+the latest view attributes when it commits. Invalid coordinates or zoom values
+leave the current map usable and reject `ready`. A successful update emits
+`journey-ready` with the current map API.
+
+`element.reset()` restores the most recently applied places. Each successful
+place or view-attribute update makes its resulting view the new reset view,
+including the center or zoom retained by a view-only update. Later
+panning, zooming with the map controls, and toggling visits do not change that
+reset baseline.
 
 First display uses a small overview plus exact selected-region chunks. The
 engine and overview start loading before a separately fetched place list is
@@ -65,6 +88,7 @@ Chromium, or set `PLAYWRIGHT_CHANNEL=chrome` for an installed Google Chrome:
 ```sh
 npm run check
 PLAYWRIGHT_MODULE=/path/to/playwright npm run test:embed
+PLAYWRIGHT_MODULE=/path/to/playwright npm run test:embed:updates
 PLAYWRIGHT_MODULE=/path/to/playwright node scripts/test-embed-refinement.mjs
 ```
 

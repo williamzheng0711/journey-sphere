@@ -1,0 +1,122 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "case": "view-only center/zoom retain map and manual visits, avoid transfers, and update reset view",
+      "requests": {
+        "world": 1,
+        "chunks": 1,
+        "fullCountries": 0
+      }
+    },
+    {
+      "case": "held places remain interactive; same-map commit uses latest view and labels; reset uses new baseline",
+      "beforePixel": [
+        [
+          230,
+          126,
+          127,
+          235
+        ]
+      ],
+      "requests": {
+        "world": 1,
+        "chunks": 2,
+        "fullCountries": 0
+      }
+    },
+    {
+      "case": "held name lookup retains map; rapid latest-wins suppresses stale success/error",
+      "superseded": "null",
+      "events": [
+        {
+          "type": "ready",
+          "visited": [
+            "SGP:ADM0:SGP"
+          ],
+          "time": 30.900000005960464
+        },
+        {
+          "type": "ready",
+          "visited": [
+            "HKG:ADM0:HKG"
+          ],
+          "time": 73.60000000149012
+        }
+      ]
+    },
+    {
+      "case": "unknown places and invalid center/zoom reject while prior map and visits remain usable",
+      "unknown": "Unknown place: Definitely not a real place.",
+      "badCenter": "JourneySphere center must contain finite coordinates with latitude between -90 and 90.",
+      "badZoom": "JourneySphere zoom must be a finite number."
+    },
+    {
+      "case": "failed chunk retains map; zoom success preserves identical places retry; repeated success avoids transfers",
+      "failedChunk": "JourneySphere: 503 loading place data for HKG",
+      "requests": [
+        "/data/embed/groups/HKG/8ccc5d53f40d6308.json",
+        "/data/embed/groups/HKG/8ccc5d53f40d6308.json"
+      ]
+    },
+    {
+      "case": "disconnect cancels pending transaction; late response cannot recreate map; reconnect uses latest places",
+      "removed": {
+        "connected": false,
+        "journey": false,
+        "sameJourney": false,
+        "canvases": 0,
+        "retainedCanvases": 0,
+        "visited": null,
+        "codeword": null,
+        "center": null,
+        "zoom": null,
+        "message": "Updating JourneySphere…",
+        "events": [
+          {
+            "type": "ready",
+            "visited": [
+              "SGP:ADM0:SGP"
+            ],
+            "time": 30.200000002980232
+          }
+        ],
+        "rejections": [],
+        "blankFrames": []
+      }
+    },
+    {
+      "case": "stylesheet failure can retry same places and reloads only the failed sheet",
+      "stylesheetError": "JourneySphere: unable to load stylesheet http://127.0.0.1:58078/src/embed.css",
+      "sheetAttempts": 2
+    },
+    {
+      "case": "custom-origin world/geometry failures retain old map; identical retry commits prepared replacement",
+      "customWorldError": "JourneySphere: 503 loading the world overview",
+      "customGeometryError": "JourneySphere: invalid compiled geometry.",
+      "requests": {
+        "world": 3,
+        "chunks": 4,
+        "fullCountries": 0
+      }
+    },
+    {
+      "case": "old-map unload reentrantly updates places after atomic origin ownership transfer",
+      "outcome": "null",
+      "requests": {
+        "world": 2,
+        "chunks": 3,
+        "fullCountries": 0
+      }
+    },
+    {
+      "case": "MutationObserver places update after origin DOM swap preserves new active ownership",
+      "requests": {
+        "world": 2,
+        "chunks": 3,
+        "fullCountries": 0
+      }
+    }
+  ],
+  "pageErrors": []
+}

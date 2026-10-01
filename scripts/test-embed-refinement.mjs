@@ -541,6 +541,7 @@ try {
   await writeFile(path.join(output, 'report.md'), [
     '# Embed navigation and refinement validation', '',
     `Status: ${report.passed ? 'PASS' : 'FAIL'}`, '',
+    `Baseline revision: \`${baselineRef}\`.`, '',
     'Cold cache, gzip, 1.6 Mbps downstream, 150 ms latency, no CPU throttling. Timing starts at navigation and ends after actual attached land canvas tiles are painted. All files were read and compressed before navigation.', '',
     `First-map values are medians of ${samples} cold samples per version and page, after one unmeasured warmup per version and page. The regression budget is the larger of 100 ms or 5% of the pinned version.`, '',
     '| Page | Previous first map | Current first map | Difference | Map body before paint |',
@@ -563,7 +564,8 @@ try {
     ...(report.failureRetry ? ['Optional outline failure keeps the initial map usable. Explicit retry succeeds and preserves selected visits.', 'Mobile detailed land remains aligned and destroy removes all tiles.', ''] : []),
     ...(report.mobileRefinement ? [`Cold mobile zoom-in to fully aligned Hong Kong detail: ${(report.mobileRefinement.timingThrottled.refinementDurationMs / 1000).toFixed(2)} s. A real tap on newly detailed land toggles the visit and the original codeword restores it.`, ''] : []),
     ...(report.errors.length ? ['```', ...report.errors, '```', ''] : []),
-    'The sibling homepage is served from an in-memory copy with only the remote embed URL replaced. Its files are not modified. The test scrolls its below-the-fold map into view immediately when ready. External fonts are excluded from this local repeatable performance check. These results measure the browser loader and compressed transfer; production CDN geography and TLS are not simulated.', '',
+    ...(consumerHtml ? ['The sibling homepage is served from an in-memory copy with only the remote embed URL replaced. Its files are not modified. The test scrolls its below-the-fold map into view immediately when ready. External fonts are excluded from this local repeatable performance check.'] : ['This run measures standalone JourneySphere embeds; no consumer website is included.']),
+    'These results measure the browser loader and compressed transfer; production CDN geography and TLS are not simulated.', '',
   ].join('\n'));
   await Promise.allSettled(contexts.map(context => context.close()));
   await browser.close();

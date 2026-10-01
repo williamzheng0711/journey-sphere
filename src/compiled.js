@@ -244,11 +244,11 @@ export async function createCompiledJourneySphere(container, options = {}) {
     const startupCountries = initialCodes.filter(code => !bootstrapReady(code));
     const [world] = await Promise.all([atlas.world, ...startupCountries.map(atlas.loadCountry)]);
     if (destroyed) throw requests.signal.reason;
-    const countryFor = code => atlas.loaded.get(code) || bootstrap.get(code);
-    const recordFor = id => countryFor(id.split(':')[0])?.byId.get(id);
-    function validateIds(ids) {
+    const countryFor = (code, countries = bootstrap) => atlas.loaded.get(code) || countries.get(code);
+    const recordFor = (id, countries) => countryFor(id.split(':')[0], countries)?.byId.get(id);
+    function validateIds(ids, countries) {
       return ids.map(id => {
-        const record = recordFor(id);
+        const record = recordFor(id, countries);
         if (!record) throw new RangeError(`Unknown region ID: ${id}`);
         return record.index;
       });
@@ -263,10 +263,30 @@ export async function createCompiledJourneySphere(container, options = {}) {
     };
     let visited = new Set(initialIndices ? idsForIndices(initialIndices) : initialIds);
     let indices = validateIds([...visited]);
-    const original = [...visited];
+    let original = [...visited];
     let active = new Set([...visited].map(id => id.split(':')[0]));
     const center = options.center || [31.5, 121.8];
     const zoom = options.zoom ?? 4;
+    let resetCenter = Array.isArray(center) ? [...center] : center;
+    let resetZoom = zoom;
+    let labels = options.labels || {};
+    function validateView(nextCenter, nextZoom) {
+      if (!Array.isArray(nextCenter) || nextCenter.length !== 2 ||
+          !Number.isFinite(nextCenter[0]) || !Number.isFinite(nextCenter[1])) {
+        throw new TypeError('JourneySphere center must be a pair of finite latitude and longitude numbers.');
+      }
+      if (nextCenter[0] < -90 || nextCenter[0] > 90) throw new RangeError('JourneySphere latitude must be between -90 and 90.');
+      if (!Number.isFinite(nextZoom)) throw new TypeError('JourneySphere zoom must be a finite number.');
+      return [...nextCenter];
+    }
+    function setView(nextCenter, nextZoom) {
+      if (destroyed) throw new Error('JourneySphere has been destroyed.');
+      const snapshot = validateView(nextCenter, nextZoom);
+      const result = map.setView(snapshot, nextZoom);
+      resetCenter = snapshot;
+      resetZoom = nextZoom;
+      return result;
+    }
     const minimumZoom = () => Math.max(2, options.mapOptions?.minZoom ?? 2,
       Math.ceil(Math.log2(Math.max(container.clientWidth, container.clientHeight) * 1.2 / 256) * 2) / 2);
     container.classList.add('journeysphere');
@@ -320,12 +340,83 @@ export async function createCompiledJourneySphere(container, options = {}) {
       statusElement.textContent = readyText;
       options.onChange?.({ visited: [...visited], codeword: getCodeword() });
     }
+    function replaceSelection({ visited: nextVisited, initialCountries = {}, labels: nextLabels = labels,
+      center: nextCenter = resetCenter, zoom: nextZoom = resetZoom } = {}) {
+      if (destroyed) throw new Error('JourneySphere has been destroyed.');
+      const codes = countryCodes(nextVisited, manifest);
+      const snapshot = [...nextVisited];
+      const view = validateView(nextCenter, nextZoom);
+      if (initialCountries === null || typeof initialCountries !== 'object' || Array.isArray(initialCountries)) {
+        throw new TypeError('initialCountries must be an object keyed by country code.');
+      }
+      if (typeof nextLabels !== 'function' && (nextLabels === null || typeof nextLabels !== 'object' || Array.isArray(nextLabels))) {
+        throw new TypeError('JourneySphere labels must be an object or function.');
+      }
+      const labelSnapshot = typeof nextLabels === 'function' ? nextLabels : { ...nextLabels };
+      const staged = new Map(bootstrap);
+      const mergeRecords = (existing, incoming, code) => {
+        const records = new Map(existing.map(record => [record.id, record]));
+        for (const record of incoming) {
+          if (records.has(record.id) && JSON.stringify(records.get(record.id)) !== JSON.stringify(record)) {
+            throw new Error(`JourneySphere: conflicting compiled geometry for ${record.id} in ${code}.`);
+          }
+          if (!records.has(record.id)) records.set(record.id, record);
+        }
+        return [...records.values()];
+      };
+      for (const [code, data] of Object.entries(initialCountries)) {
+        if (!manifest.countries[code]?.file) throw new RangeError(`Unknown initial country: ${code}`);
+        const incoming = parseCountry(data, code, manifest, true);
+        for (const record of incoming.admin1 || []) {
+          if (typeof record.id !== 'string' || !record.id.startsWith(`${code}:`) || record.countryCode !== code) {
+            throw new Error(`JourneySphere: invalid compiled parent for ${code}.`);
+          }
+        }
+        const full = atlas.loaded.get(code);
+        if (full) {
+          for (const record of incoming.features) {
+            if (!full.byId.has(record.id) || full.byIndex.get(record.index)?.id !== record.id) {
+              throw new Error(`JourneySphere: conflicting compiled geometry for ${record.id} in ${code}.`);
+            }
+          }
+          const parents = new Set((full.admin1 || []).map(record => record.id));
+          for (const record of incoming.admin1 || []) {
+            if (!parents.has(record.id)) throw new Error(`JourneySphere: conflicting compiled geometry for ${record.id} in ${code}.`);
+          }
+          mergeRecords(full.features, incoming.features, code);
+          mergeRecords(full.admin1 || [], incoming.admin1 || [], code);
+        }
+        const existing = staged.get(code);
+        staged.set(code, existing ? parseCountry({ ...incoming,
+          features: mergeRecords(existing.features, incoming.features, code),
+          admin1: mergeRecords(existing.admin1 || [], incoming.admin1 || [], code),
+        }, code, manifest, true) : incoming);
+      }
+      const nextIndices = validateIds(snapshot, staged);
+      // Everything is validated before the visible map or reset baseline changes.
+      map.setView(view, nextZoom);
+      selectionRequest++;
+      bootstrap.clear();
+      for (const [code, country] of staged) bootstrap.set(code, country);
+      visited = new Set(snapshot);
+      indices = nextIndices;
+      active = new Set(codes);
+      labels = labelSnapshot;
+      original = [...snapshot];
+      resetCenter = view;
+      resetZoom = nextZoom;
+      layer.refresh();
+      statusElement.textContent = readyText;
+      options.onChange?.({ visited: [...visited], codeword: getCodeword() });
+    }
     layer = createCompiledLayer(L, {
       world, extent: manifest.extent,
-      getCountries: () => [...active].map(countryFor).filter(Boolean),
+      getCountries: () => [...active].map(code => countryFor(code)).filter(Boolean),
       getVisited: () => visited,
       colorFor: code => options.colors?.[code] || manifest.countries[code]?.color || '#64748b',
-      fillOpacity: opacity, labels: options.labels || {}, interactive: options.interactive !== false,
+      fillOpacity: opacity,
+      labels: (id, record) => typeof labels === 'function' ? labels(id, record) : labels[id] || record.name || id,
+      interactive: options.interactive !== false,
       onToggle(id) {
         const next = new Set(visited);
         if (next.has(id)) next.delete(id); else next.add(id);
@@ -338,9 +429,9 @@ export async function createCompiledJourneySphere(container, options = {}) {
     const resize = () => { if (!destroyed) { map.invalidateSize({ pan: false }); map.setMinZoom(minimumZoom()); } };
     resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
     resizeObserver?.observe(container);
-    const loadInitialDetails = async () => {
+    const loadCountryDetails = async codes => {
       if (destroyed) return;
-      const results = await Promise.allSettled(initialCodes.filter(code => !atlas.loaded.has(code)).map(async code => {
+      const results = await Promise.allSettled(codes.filter(code => !atlas.loaded.has(code)).map(async code => {
         const country = await atlas.loadCountry(code);
         if (!destroyed && country && active.has(code)) layer?.requestRefresh();
         return country;
@@ -356,10 +447,16 @@ export async function createCompiledJourneySphere(container, options = {}) {
     let detailsRequest;
     const loadDetails = () => {
       if (destroyed) return Promise.reject(new Error('JourneySphere has been destroyed.'));
-      if (!detailsRequest) {
-        detailsRequest = loadInitialDetails().catch(error => { detailsRequest = undefined; throw error; });
-      }
-      return detailsRequest;
+      const codes = [...active].sort();
+      const key = codes.join(',');
+      if (detailsRequest?.key === key) return detailsRequest.promise;
+      const request = { key, promise: null };
+      request.promise = loadCountryDetails(codes).catch(error => {
+        if (detailsRequest === request) detailsRequest = undefined;
+        throw error;
+      });
+      detailsRequest = request;
+      return request.promise;
     };
     const emitOutlineError = error => {
       if (!destroyed && !error?.obsolete && error?.name !== 'AbortError') options.onError?.(error);
@@ -416,7 +513,8 @@ export async function createCompiledJourneySphere(container, options = {}) {
     return {
       map, getVisited: () => [...visited], getCodeword,
       setVisited: ids => update(ids), setCodeword: word => update(word, true),
-      reset: async () => { await update(original); if (!destroyed) map.setView(center, zoom); },
+      setView, replaceSelection,
+      reset: async () => { await update(original); if (!destroyed) map.setView(resetCenter, resetZoom); },
       loadCatalog: () => { if (destroyed) throw new Error('JourneySphere has been destroyed.'); return atlas.loadCatalog(); },
       detailsReady, loadDetails,
       get outlineDetailsReady() {

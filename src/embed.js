@@ -22,17 +22,22 @@ function parsePlaces(value) {
 }
 
 function parseCenter(value) {
-  if (Array.isArray(value) && value.length === 2) return value.map(Number);
+  let parsed = value;
   if (typeof value === 'string') {
     try {
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed) && parsed.length === 2) return parsed.map(Number);
+      parsed = JSON.parse(value);
     } catch {
-      const parsed = value.split(',').map(Number);
-      if (parsed.length === 2) return parsed;
+      parsed = value.split(',');
     }
   }
-  return DEFAULT_CENTER;
+  if (!Array.isArray(parsed) || parsed.length !== 2 || parsed.some(value => value === null || String(value).trim() === '')) {
+    throw new RangeError('JourneySphere center must contain a latitude and longitude.');
+  }
+  const center = parsed.map(Number);
+  if (!center.every(Number.isFinite) || Math.abs(center[0]) > 90) {
+    throw new RangeError('JourneySphere center must contain finite coordinates with latitude between -90 and 90.');
+  }
+  return center;
 }
 
 function initialView(ids, countries, container) {
@@ -86,11 +91,21 @@ function stylesheet(root, href) {
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = href;
-  root.append(link);
   return new Promise((resolve, reject) => {
     link.addEventListener('load', resolve, { once: true });
-    link.addEventListener('error', () => reject(new Error(`JourneySphere: unable to load stylesheet ${href}`)), { once: true });
+    link.addEventListener('error', () => {
+      link.remove();
+      reject(new Error(`JourneySphere: unable to load stylesheet ${href}`));
+    }, { once: true });
+    root.append(link);
   });
+}
+
+function mapElement() {
+  const map = document.createElement('div');
+  map.className = 'map';
+  map.setAttribute('part', 'map');
+  return map;
 }
 
 let leafletReady;
@@ -118,21 +133,22 @@ export class JourneySphereElement extends HTMLElementBase {
     this._readyPromise = Promise.resolve(null);
     this._generation = 0;
     this._abort = null;
+    this._pending = null;
+    this._activeDataUrl = null;
+    this._automatic = null;
+    this._placesNeedRetry = false;
     this._overview = null;
     this._placesAssigned = false;
     this._connected = false;
     const root = this.attachShadow({ mode: 'open' });
-    this._stylesReady = Promise.all([
-      stylesheet(root, new URL('../vendor/leaflet/leaflet.css', import.meta.url)),
-      stylesheet(root, new URL('./style.css', import.meta.url)),
-      stylesheet(root, new URL('./embed.css', import.meta.url)),
-    ]);
+    this._styles = new Map();
+    this._styleUrls = ['../vendor/leaflet/leaflet.css', './style.css', './embed.css']
+      .map(path => new URL(path, import.meta.url).href);
+    this._stylesReady = this._ensureStyles();
     this._stylesReady.catch(() => {});
     const frame = document.createElement('div');
     frame.className = 'frame';
-    const map = document.createElement('div');
-    map.className = 'map';
-    map.setAttribute('part', 'map');
+    const map = mapElement();
     const message = document.createElement('div');
     message.className = 'message';
     message.setAttribute('role', 'status');
@@ -149,7 +165,9 @@ export class JourneySphereElement extends HTMLElementBase {
   set places(value) {
     if (!Array.isArray(value)) throw new TypeError('JourneySphere places must be an array.');
     this._placesAssigned = true;
-    this.setAttribute('places', JSON.stringify(value));
+    const serialized = JSON.stringify(value);
+    if (serialized === this.getAttribute('places') && this._placesNeedRetry && this._connected && this.isConnected) this._start();
+    else this.setAttribute('places', serialized);
   }
 
   connectedCallback() {
@@ -165,7 +183,14 @@ export class JourneySphereElement extends HTMLElementBase {
   }
   disconnectedCallback() { this._connected = false; this._stop(); this._stopOverview(); }
   attributeChangedCallback(name, oldValue, newValue) {
-    if (oldValue !== newValue && this._connected && this.isConnected) this._start();
+    if (oldValue === newValue || !this._connected || !this.isConnected) return;
+    if (name === 'center' || name === 'zoom') {
+      // A pending place update reads the latest view attributes at commit time.
+      // It need not repeat its lookup and geometry transfers for a view change.
+      if (this._pending) return;
+      if (this._journey) { this._updateView(name); return; }
+    }
+    this._start();
   }
 
   reset() {
@@ -181,10 +206,57 @@ export class JourneySphereElement extends HTMLElementBase {
 
   _stop() {
     this._generation++;
+    this._pending?.controller.abort();
+    this._pending = null;
     this._abort?.abort();
     this._abort = null;
     this._journey?.destroy();
     this._journey = null;
+    this._activeDataUrl = null;
+    this._automatic = null;
+  }
+
+  _ensureStyles() {
+    return Promise.all(this._styleUrls.map(href => {
+      if (!this._styles.has(href)) {
+        const promise = stylesheet(this.shadowRoot, href).catch(error => {
+          if (this._styles.get(href) === promise) this._styles.delete(href);
+          throw error;
+        });
+        this._styles.set(href, promise);
+      }
+      return this._styles.get(href);
+    }));
+  }
+
+  _view(automatic) {
+    const zoom = this.hasAttribute('zoom') ? Number(this.getAttribute('zoom')) : automatic.zoom;
+    if (!Number.isFinite(zoom)) throw new RangeError('JourneySphere zoom must be a finite number.');
+    return { center: this.hasAttribute('center') ? parseCenter(this.getAttribute('center')) : automatic.center, zoom };
+  }
+
+  _reportError(error) {
+    this._setMessage(`JourneySphere could not load: ${errorText(error)}`, true);
+    this.dispatchEvent(new CustomEvent('journey-error', { detail: error, bubbles: true, composed: true }));
+  }
+
+  _updateView(name) {
+    try {
+      const current = this._journey.map.getCenter();
+      const automatic = this._automatic;
+      const center = name === 'center'
+        ? this.hasAttribute('center') ? parseCenter(this.getAttribute('center')) : automatic.center
+        : [current.lat, current.lng];
+      const zoom = name === 'zoom' ? this._view(automatic).zoom : this._journey.map.getZoom();
+      this._journey.setView(center, zoom);
+      this._setMessage('');
+      this._readyPromise = Promise.resolve(this._journey);
+      this.dispatchEvent(new CustomEvent('journey-ready', { detail: this._journey, bubbles: true, composed: true }));
+    } catch (error) {
+      this._reportError(error);
+      this._readyPromise = Promise.reject(error);
+      this._readyPromise.catch(() => {});
+    }
   }
 
   _embedDataUrl() {
@@ -218,58 +290,108 @@ export class JourneySphereElement extends HTMLElementBase {
   }
 
   _start() {
-    this._stop();
-    const generation = this._generation;
+    const generation = ++this._generation;
+    this._pending?.controller.abort();
     const controller = new AbortController();
-    this._abort = controller;
-    this._setMessage('Loading JourneySphere…');
-    this._readyPromise = this._load(generation, controller.signal).then(journey => {
-      if (generation !== this._generation) return journey;
+    const pending = { generation, controller };
+    this._pending = pending;
+    this._setMessage(this._journey ? 'Updating JourneySphere…' : 'Loading JourneySphere…');
+    this._readyPromise = this._load(generation, controller).then(journey => {
+      if (generation !== this._generation) return null;
+      if (this._pending === pending) this._pending = null;
+      this._placesNeedRetry = false;
       this._journey = journey;
       this._setMessage('');
       this.dispatchEvent(new CustomEvent('journey-ready', { detail: journey, bubbles: true, composed: true }));
       return journey;
     }).catch(error => {
       if (generation !== this._generation || error?.name === 'AbortError') return null;
+      this._pending = null;
+      this._placesNeedRetry = true;
       controller.abort(error);
-      this._setMessage(`JourneySphere could not load: ${errorText(error)}`, true);
-      this.dispatchEvent(new CustomEvent('journey-error', { detail: error, bubbles: true, composed: true }));
+      this._reportError(error);
       throw error;
     });
     this._readyPromise.catch(() => {});
   }
 
-  async _load(generation, signal) {
+  async _load(generation, controller) {
+    const signal = controller.signal;
     const embedDataUrl = this._embedDataUrl();
     const dataUrl = new URL('../', embedDataUrl);
     // Overlap the overview with place lookup and selected-region transfers.
     const worldData = this._overviewFor(embedDataUrl);
-    const [L, places] = await Promise.all([
+    const placeLookup = resolvePlaces(this.places, { baseUrl: embedDataUrl, signal });
+    const countryData = placeLookup.then(places => loadChunks(places.chunks, embedDataUrl, signal, manifest));
+    this._stylesReady = this._ensureStyles();
+    const [L, places, initialCountries, world] = await Promise.all([
       importLeaflet(),
-      resolvePlaces(this.places, { baseUrl: embedDataUrl, signal }),
+      placeLookup,
+      countryData,
+      worldData,
       this._stylesReady,
     ]);
-    if (generation !== this._generation) throw signal.reason || new DOMException('Disconnected', 'AbortError');
-    const initialCountries = await loadChunks(places.chunks, embedDataUrl, signal, manifest);
+    const assertCurrent = () => {
+      if (signal.aborted || generation !== this._generation) {
+        throw signal.reason || new DOMException('Superseded JourneySphere update', 'AbortError');
+      }
+    };
+    assertCurrent();
     const automatic = initialView(places.visited, initialCountries, this._mapElement);
-    const useAutomatic = !this.hasAttribute('center') && !this.hasAttribute('zoom');
-    const center = useAutomatic ? automatic.center : parseCenter(this.getAttribute('center'));
-    const zoomAttribute = this.getAttribute('zoom');
-    const zoomValue = useAutomatic ? automatic.zoom : zoomAttribute === null ? DEFAULT_ZOOM : Number(zoomAttribute);
-    const journey = await createCompiledJourneySphere(this._mapElement, {
-      leaflet: L,
-      dataUrl,
-      manifest, worldData,
-      visited: places.visited,
-      labels: places.labels,
-      initialCountries,
-      backgroundDetails: false,
-      center,
-      zoom: Number.isFinite(zoomValue) ? zoomValue : DEFAULT_ZOOM,
-      signal,
-      onError: error => this.dispatchEvent(new CustomEvent('journey-error', { detail: error, bubbles: true, composed: true })),
-    });
-    return journey;
+    const view = this._view(automatic);
+    if (this._journey && this._activeDataUrl === embedDataUrl.href) {
+      this._journey.replaceSelection({ visited: places.visited, initialCountries, labels: places.labels, ...view });
+      this._automatic = automatic;
+      if (this._pending?.controller === controller) this._pending = null;
+      return this._journey;
+    }
+
+    // A different data origin needs a new atlas. Build it in a sized hidden
+    // container so even invalid geometry leaves the current map available.
+    const previous = this._journey;
+    const target = previous ? mapElement() : this._mapElement;
+    if (previous) {
+      Object.assign(target.style, { position: 'absolute', inset: '0', visibility: 'hidden', pointerEvents: 'none' });
+      this._mapElement.parentNode.insertBefore(target, this._message);
+    }
+    let journey;
+    let committed = false;
+    try {
+      journey = await createCompiledJourneySphere(target, {
+        leaflet: L, dataUrl, manifest, worldData: world,
+        visited: places.visited, labels: places.labels, initialCountries,
+        backgroundDetails: false, ...view, signal,
+        onError: error => {
+          if (!signal.aborted) this.dispatchEvent(new CustomEvent('journey-error', { detail: error, bubbles: true, composed: true }));
+        },
+      });
+      assertCurrent();
+      const previousController = this._abort;
+      const previousElement = this._mapElement;
+      // Transfer ownership before old-map unload listeners or DOM observers can
+      // start another update. The new map is active, never an abandoned pending
+      // request, when those callbacks run.
+      this._journey = journey;
+      this._abort = controller;
+      this._activeDataUrl = embedDataUrl.href;
+      this._automatic = automatic;
+      this._mapElement = target;
+      if (this._pending?.controller === controller) this._pending = null;
+      committed = true;
+      if (previous) {
+        for (const property of ['inset', 'visibility', 'pointer-events']) target.style.removeProperty(property);
+        target.style.position = 'relative';
+        previousController?.abort();
+        previous.destroy();
+        previousElement.remove();
+      }
+      return journey;
+    } finally {
+      if (!committed) {
+        journey?.destroy();
+        if (previous) target.remove();
+      }
+    }
   }
 }
 
