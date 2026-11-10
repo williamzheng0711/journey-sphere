@@ -3,16 +3,35 @@
 JourneySphere owns the map renderer, Leaflet, styles, names, geometry and loading
 behavior. A website supplies its layout and a list of visited places.
 
+Serve the small runtime with the consuming website and fetch geography directly
+from an immutable JourneySphere data release. Generate the runtime here:
+
+```sh
+node scripts/export-embed.mjs --out /path/to/site/journey-sphere --data-base-url https://raw.githubusercontent.com/williamzheng0711/journey-sphere/5079212a661d9bd2b73dfcb7d1e2ca3adfb60633/data/embed/
+```
+
 ```html
 <script type="module" src="/journey-sphere/embed.js"></script>
 <journey-sphere places='["Shanghai", "香港", "Tokyo"]'
+  data-base-url="https://raw.githubusercontent.com/williamzheng0711/journey-sphere/5079212a661d9bd2b73dfcb7d1e2ca3adfb60633/data/embed/"
   center="31.5,121.8" zoom="4"></journey-sphere>
 ```
 
-For a remote deployment, publish this complete repository under one immutable
-revision and use its full commit SHA in the script URL:
-`https://cdn.jsdelivr.net/gh/williamzheng0711/journey-sphere@<full-commit-sha>/embed.js`.
-Code and all data must come from that same revision. The older `d883c187` embed
+Use the same full data commit in the export command and `data-base-url`.
+The exporter checks the remote manifest and name aliases against the local atlas
+before writing files. It copies canonical modules, styles, Leaflet and name aliases, with source
+and output hashes in `export-manifest.json`. Geometry stays in the data release.
+Make runtime changes in JourneySphere, then regenerate the website's copy.
+Changing the website's place list requires no export.
+
+The full atlas exceeds jsDelivr's 50 MB package limit. An uncached file can
+return 403 with "Package size exceeded" while cached files still load. This can
+affect modules as well as JSON, so a retry or a new CDN commit pin does not fix
+delivery. GitHub raw permits JSON fetches, but its JavaScript MIME type cannot
+serve browser modules; the generated runtime avoids that dependency.
+
+An existing remote module deployment must use a full commit SHA rather than
+`@main`, and all imported code and data must match its atlas. The older `d883c187` embed
 does not contain zoom refinement; pointing a consumer at that release does not
 pick up changes to the main branch. The current working tree must be published
 before a website can use its new immutable URL.
@@ -104,6 +123,7 @@ Chromium, or set `PLAYWRIGHT_CHANNEL=chrome` for an installed Google Chrome:
 
 ```sh
 npm run check
+PLAYWRIGHT_MODULE=/path/to/playwright npm run test:embed:delivery
 PLAYWRIGHT_MODULE=/path/to/playwright npm run test:names
 PLAYWRIGHT_MODULE=/path/to/playwright npm run test:embed
 PLAYWRIGHT_MODULE=/path/to/playwright npm run test:embed:updates

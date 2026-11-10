@@ -93,6 +93,15 @@ out of first display and panning, while country outline refinement remains activ
 Live place updates retain the working map until new data has been validated;
 view-only updates preserve programmatic visit changes. See [the embed guide](docs/embed.md)
 for update, retry and reset behavior.
+
+For production websites, generate the small embed runtime with
+`npm run export:embed -- --out /path/to/site/journey-sphere --data-base-url https://raw.githubusercontent.com/williamzheng0711/journey-sphere/<full-commit-sha>/data/embed/`.
+Serve its `embed.js` from the website and set the element's `data-base-url` to the
+same immutable URL. The exporter checks the atlas and records file hashes;
+geographic data stays remote. The full repository exceeds jsDelivr's 50 MB
+package limit, which causes 403 responses for uncached assets. See the
+[embed guide](docs/embed.md) for the complete markup and update command.
+
 Map repainting also preserves visible tiles, including during coastline updates,
 visit updates, reset and instant view changes. [Frame-by-frame browser checks](outputs/map-flashing/report.md)
 compare the previous flashing release with the corrected renderer.
